@@ -5,8 +5,8 @@ import argparse
 
 from typing import Dict, List, Optional, Tuple
 
-from src.config import SHARED_MAILS
-from src.extraction import split_by_conterparty
+from src.config import SHARED_MAILS, COUNTERPARTIES
+from src.extraction import split_by_counterparty
 from src.msla import *
 
 
@@ -26,7 +26,7 @@ def main (token : Optional[str] = None, shared_emails: Optional[List[str]] = Non
         
         try :
 
-            df_email = get_inbox_messages_between(start_date="2025-10-02", token=token, email=email, with_attach=True)
+            df_email = get_inbox_messages_between(token=token, email=email, with_attach=True)
             
             if df_email.is_empty() :
 
@@ -45,7 +45,7 @@ def main (token : Optional[str] = None, shared_emails: Optional[List[str]] = Non
 
     # CASH email information for different banks
     #df_gs, df_ms, df_saxo, df_ubs, df_edb = extract_emails_by_bank(df)
-    rules_df = split_by_conterparty(df)
+    rules_df = split_by_counterparty(rules_df)
     print(type(rules_df))
     print(rules_df)
 
