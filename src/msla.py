@@ -207,20 +207,102 @@ def list_message_attachments(token: str, email: str, message_id: str) -> List[Di
     return r.json().get("value", [])
 
 
-def save_message_attachements (
-        
-        token : str,
-        email : str,
-        message_id : str | int,
-        dir_abs_path : str,
-        subject_hint : Optional[str] = None
-    
-    ) :
-    """
-    
-    """
-    saved_paths : List[str] = []
-    attachments = list_message_attachments(token, email, message_id)
+def download_attachments_for_message (
 
-    #msg_dir_name = safe_filename()
+        message_id: str,
+        token : Optional[str] = None,
+        out_dir : Optional[str] = "attachments",
+        user_upn: Optional[str] = None
+    
+    ):
+    """
+    message_id: the Graph message id (string)
+    user_upn: optional, e.g. 'alice@example.com'; when provided use /users/{user_upn}/messages/{id}
+              otherwise uses /me/messages/{id}
+    """
+    token = get_token() if token is None else token
+    headers = {"Authorization": f"Bearer {token}"}
 
+    os.makedirs(out_dir, exist_ok=True)
+    base_path = f"{GRAPH_BASE}/me/messages/{message_id}" if user_upn is None else f"{GRAPH_BASE}/users/{user_upn}/messages/{message_id}"
+
+    # 1) list attachments
+    list_url = base_path + "/attachments"
+    r = requests.get(list_url, headers=headers)
+    r.raise_for_status()
+    attachments = r.json().get("value", [])
+
+    if not attachments:
+        print("No attachments found.")
+        return []
+
+    saved = []
+    for att in attachments:
+        odata_type = att.get("@odata.type", "")
+        att_id = att.get("id")
+        att_name = att.get("name") or att.get("contentType") or f"attachment-{att_id}"
+
+        # fileAttachment: contains contentBytes (base64)
+        if odata_type.lower().endswith("fileattachment"):
+            content_b64 = att.get("contentBytes")
+            if content_b64:
+                data = base64.b64decode(content_b64)
+                path = os.path.join(out_dir, att_name)
+                with open(path, "wb") as f:
+                    f.write(data)
+                saved.append(path)
+                print("Saved fileAttachment ->", path)
+            else:
+                # fallback: fetch full attachment by id
+                get_url = f"{list_url}/{att_id}"
+                rr = requests.get(get_url, headers=headers)
+                rr.raise_for_status()
+                full = rr.json()
+                cb = full.get("contentBytes")
+                if cb:
+                    path = os.path.join(out_dir, full.get("name", att_name))
+                    with open(path, "wb") as f:
+                        f.write(base64.b64decode(cb))
+                    saved.append(path)
+                    print("Saved (fetched) fileAttachment ->", path)
+                else:
+                    print("Attachment missing contentBytes:", att_id)
+
+        # itemAttachment: embedded message/event/contact (may contain an 'item' property)
+        elif odata_type.lower().endswith("itemattachment"):
+            # You can GET the attachment by id to inspect the embedded item
+            get_url = f"{list_url}/{att_id}"
+            rr = requests.get(get_url, headers=headers)
+            rr.raise_for_status()
+            item = rr.json().get("item")
+            # Save the embedded item's subject/body as .eml or .json
+            fname = att.get("name") or f"embedded-{att_id}.json"
+            path = os.path.join(out_dir, fname)
+            with open(path, "w", encoding="utf-8") as f:
+                import json
+                json.dump(item, f, ensure_ascii=False, indent=2)
+            saved.append(path)
+            print("Saved itemAttachment (JSON) ->", path)
+
+        # referenceAttachment: link to content in cloud (OneDrive/SharePoint etc.)
+        elif odata_type.lower().endswith("referenceattachment"):
+            # referenceAttachment contains a 'sourceUrl' or other metadata
+            src = att.get("sourceUrl") or att.get("contentLocation")
+            info_path = os.path.join(out_dir, f"reference-{att_id}.txt")
+            with open(info_path, "w", encoding="utf-8") as f:
+                f.write(f"Reference attachment metadata:\n{att}\n\nSource URL: {src}\n")
+            saved.append(info_path)
+            print("Saved referenceAttachment metadata ->", info_path)
+
+        else:
+            # Unknown type: try fetching by id
+            get_url = f"{list_url}/{att_id}"
+            rr = requests.get(get_url, headers=headers)
+            rr.raise_for_status()
+            with open(os.path.join(out_dir, f"unknown-{att_id}.json"), "w", encoding="utf-8") as f:
+                import json
+                json.dump(rr.json(), f, ensure_ascii=False, indent=2)
+            print("Saved unknown attachment metadata for inspection:", att_id)
+
+    return saved
+    

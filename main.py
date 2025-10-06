@@ -45,13 +45,22 @@ def main (token : Optional[str] = None, shared_emails: Optional[List[str]] = Non
 
     # CASH email information for different banks
     #df_gs, df_ms, df_saxo, df_ubs, df_edb = extract_emails_by_bank(df)
-    rules_df = split_by_counterparty(rules_df)
+    rules_df = split_by_counterparty(df)
     print(type(rules_df))
     print(rules_df)
 
     for k, v in rules_df.items() :
         
         v.write_excel(k + ".xlsx")
+        
+        records = v.to_dicts()
+        for row in records :
+
+            msg_id = row["id"]
+            origin = row["originEmail"]
+            download_attachments_for_message(msg_id, token, f"./attachments/{k}", user_upn=origin)
+        
+
 
         
 
