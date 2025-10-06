@@ -57,7 +57,7 @@ EMAIL_COLUMNS = {
 MS = {
 
     "emails": {e.strip() for e in os.getenv("MS_EMAILS").split(";") if e.strip()},
-    "subject": "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("MS_SUBJECT_WORDS").split(";") if w.strip()),
+    "subject": os.getenv("MS_SUBJECT_WORDS").strip(), # "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("MS_SUBJECT_WORDS").split(";") if w.strip()),
     "filenames": {f.strip() for f in os.getenv("MS_FILENAMES").split(";") if f.strip()},
 
 }
@@ -65,7 +65,7 @@ MS = {
 GS = {
 
     "emails": {e.strip() for e in os.getenv("GS_EMAILS").split(";") if e.strip()},
-    "subject": "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("GS_SUBJECT_WORDS").split(";") if w.strip()),
+    "subject": os.getenv("GS_SUBJECT_WORDS").strip(), # "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("GS_SUBJECT_WORDS").split(";") if w.strip()),
     "filenames": {f.strip() for f in os.getenv("GS_FILENAMES").split(";") if f.strip()}
 
 }
@@ -73,7 +73,7 @@ GS = {
 SAXO = {
 
     "emails": {e.strip() for e in os.getenv("SAXO_EMAILS").split(";") if e.strip()},
-    "subject": "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("SAXO_SUBJECT_WORDS").split(";") if w.strip()),
+    "subject": os.getenv("SAXO_SUBJECT_WORDS").strip(), #"(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("SAXO_SUBJECT_WORDS").split(";") if w.strip()),
     "filenames": {f.strip() for f in os.getenv("SAXO_FILENAMES").split(";") if f.strip()}
 
 }
@@ -81,7 +81,7 @@ SAXO = {
 EDB = {
 
     "emails": {e.strip() for e in os.getenv("EDB_EMAILS").split(";") if e.strip()},
-    "subject": "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("EDB_SUBJECT_WORDS").split(";") if w.strip()),
+    "subject": os.getenv("EDB_SUBJECT_WORDS").strip(), #"(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("EDB_SUBJECT_WORDS").split(";") if w.strip()),
     "filenames": {f.strip() for f in os.getenv("EDB_FILENAMES").split(";") if f.strip()}
 
 }
@@ -89,7 +89,7 @@ EDB = {
 UBS = {
 
     "emails": {e.strip() for e in os.getenv("UBS_EMAILS").split(";") if e.strip()},
-    "subject": "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("UBS_SUBJECT_WORDS").split(";") if w.strip()),
+    "subject": os.getenv("UBS_SUBJECT_WORDS").strip(), # "(?i)" + "|".join(re.escape(w.strip()) for w in os.getenv("UBS_SUBJECT_WORDS").split(";") if w.strip()),
     "filenames": {f.strip() for f in os.getenv("UBS_FILENAMES").split(";") if f.strip()}
 
 }

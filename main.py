@@ -3,14 +3,22 @@ from __future__ import annotations
 import os
 import argparse
 
+import datetime as dt
 from typing import Dict, List, Optional, Tuple
 
-from src.config import SHARED_MAILS, COUNTERPARTIES
+from src.config import SHARED_MAILS
 from src.extraction import split_by_counterparty
 from src.msla import *
 
 
-def main (token : Optional[str] = None, shared_emails: Optional[List[str]] = None, schema_df : Optional[Dict] = None) -> None:
+def main (
+    
+        start_date : Optional[str | dt.datetime] = None,
+        token : Optional[str] = None,
+        shared_emails: Optional[List[str]] = None,
+        schema_df : Optional[Dict] = None
+    
+    ) -> None:
     """
     Main entry point
     """
@@ -26,7 +34,7 @@ def main (token : Optional[str] = None, shared_emails: Optional[List[str]] = Non
         
         try :
 
-            df_email = get_inbox_messages_between(token=token, email=email, with_attach=True)
+            df_email = get_inbox_messages_between(start_date=start_date, token=token, email=email, with_attach=True)
             
             if df_email.is_empty() :
 
@@ -52,15 +60,6 @@ def main (token : Optional[str] = None, shared_emails: Optional[List[str]] = Non
     for k, v in rules_df.items() :
         
         v.write_excel(k + ".xlsx")
-        
-        records = v.to_dicts()
-        for row in records :
-
-            msg_id = row["id"]
-            origin = row["originEmail"]
-            download_attachments_for_message(msg_id, token, f"./attachments/{k}", user_upn=origin)
-        
-
 
         
 
