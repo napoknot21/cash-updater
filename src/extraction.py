@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import os
-import re, pathlib
+import re
 import polars as pl
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Union, Tuple, Optional, Iterable, Set
-
 from src.config import COUNTERPARTIES
+from typing import Dict, List, Optional, Set, Tuple, Iterable
 
 
 # -------------------- Subject pattern --------------------
@@ -18,27 +15,20 @@ def _compile_subject_pattern(subject: Iterable[str] | str) -> str:
     - If `subject` looks like a regex, use it as-is (prefix (?i) if missing).
     - Else treat as list/semicolon-separated words and add word boundaries for each word.
     """
-    if isinstance(subject, str) :
-
+    if isinstance(subject, str):
         s = subject.strip()
-        
         # looks like a regex if it contains any common meta
         if any(ch in s for ch in r".*+?[]()|{}^$\\"):
             pat = s or r"^(?!)"
-        
-        else :
+        else:
             words = [w.strip() for w in s.split(";") if w.strip()]
             pat = "|".join(rf"\b{re.escape(w)}\b" for w in words) if words else r"^(?!)"
-    
-    else :
-
+    else:
         words = [str(w).strip() for w in subject if str(w).strip()]
         pat = "|".join(rf"\b{re.escape(w)}\b" for w in words) if words else r"^(?!)"
 
-    if not pat.startswith("(?i)") :
-
+    if not pat.startswith("(?i)"):
         pat = f"(?i){pat}"
-    
     return pat
 
 
@@ -55,9 +45,7 @@ def _normalize_rules(rules: Optional[Dict[str, Dict]]) -> Dict[str, Dict]:
     if not rules:
         return {}
 
-    compiled = _compile_subject_patterns(rules)
-    buckets : Dict[str, List[dict]] = {name: [] for name in rules.keys()}
-    buckets["UNMATCHED"] = []
+    out: Dict[str, Dict] = {}
 
     for name, rule in rules.items():
         emails = {str(e).strip().lower() for e in rule.get("emails", set()) if str(e).strip()}
@@ -66,12 +54,18 @@ def _normalize_rules(rules: Optional[Dict[str, Dict]]) -> Dict[str, Dict]:
         if not domains:
             domains = {e.split("@", 1)[-1] for e in emails if "@" in e}
 
-        for name, rule in rules.items() :
+        subj_pat = _compile_subject_pattern(rule.get("subject", []))
+        filenames = {str(f).strip().lower() for f in rule.get("filenames", set()) if str(f).strip()}
 
-            if _row_matches_counterparty(row, rule, compiled[name], None) :
+        out[name] = {
+            "emails": emails,
+            "domains": domains,
+            "subject_re": subj_pat,
+            "filenames": filenames,
+        }
 
-                buckets[name].append(row)
-                matched = True  
+    return out
+
 
 # -------------------- DataFrame preparation --------------------
 
@@ -260,27 +254,40 @@ def _materialize_buckets(dfw: pl.DataFrame, original: pl.DataFrame, names: List[
 
     return out
 
-            if fname and fname.lower() in targets :
-                return True
-            
-    return False
 
+# -------------------- Public API --------------------
 
-def _compile_subject_patterns (rules : Optional[Dict[str, Dict]]) -> Dict[str, re.Pattern] :
+def split_by_counterparty(
+    df: pl.DataFrame,
+    rules: Optional[Dict[str, Dict]] = None,
+    attachment_column: Optional[str] = None,
+) -> Dict[str, pl.DataFrame]:
     """
-    
+    Vectorized splitter.
+    Keeps ONLY rows with hasAttachments == True.
+
+    Priority per counterparty (with *mandatory* subject containment):
+      (1) exact email  (score=100)  AND subject contains pattern (+ optional filenames)
+      (2) domain       (score=80)   AND subject contains pattern (+ optional filenames)
+
+    Returns a dict with matched buckets + an "UNMATCHED" bucket.
     """
-    compiled = {}
+    if df is None or df.is_empty():
+        return {}
 
-    for k, v in rules.items() :
+    # Strict: attachments only
+    df2 = _filter_attachments_only(df)
+    if df2.is_empty():
+        # Nothing to classify; still return a single UNMATCHED bucket for consistency
+        return {"UNMATCHED": df2}
 
-        pat = v.get("subject") or ""
-        
-        try :
-            compiled[k] = re.compile(pat) if pat else re.compile(r"^(?!)")
+    nrules = _normalize_rules(COUNTERPARTIES if rules is None else rules)
 
-        except re.error :
-            compiled[k] = re.compile(r"^(?!)")
-            
-    return compiled
+    work = _extract_sender_columns(df2)
+    work = _normalize_attachments(work, attachment_column)
+    work = _init_assignment(work)
 
+    for name, rule in nrules.items():
+        work = _apply_rule(work, name, rule)
+
+    return _materialize_buckets(work, df2, list(nrules.keys()))
