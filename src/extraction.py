@@ -257,11 +257,13 @@ def _materialize_buckets(dfw: pl.DataFrame, original: pl.DataFrame, names: List[
 
 # -------------------- Public API --------------------
 
-def split_by_counterparty(
-    df: pl.DataFrame,
-    rules: Optional[Dict[str, Dict]] = None,
-    attachment_column: Optional[str] = None,
-) -> Dict[str, pl.DataFrame]:
+def split_by_counterparty (
+        
+        df: pl.DataFrame,
+        rules: Optional[Dict[str, Dict]] = None,
+        attachment_column: Optional[str] = None,
+    
+    ) -> Dict[str, pl.DataFrame] :
     """
     Vectorized splitter.
     Keeps ONLY rows with hasAttachments == True.
@@ -272,11 +274,12 @@ def split_by_counterparty(
 
     Returns a dict with matched buckets + an "UNMATCHED" bucket.
     """
-    if df is None or df.is_empty():
+    if df is None or df.is_empty() :
         return {}
 
     # Strict: attachments only
     df2 = _filter_attachments_only(df)
+    
     if df2.is_empty():
         # Nothing to classify; still return a single UNMATCHED bucket for consistency
         return {"UNMATCHED": df2}
