@@ -48,15 +48,13 @@ def main (
         df = pl.concat([df, df_email], how="vertical")
 
 
-    path = df.write_excel("emails.xlsx")
+    path = df.write_excel("./raw/emails.xlsx")
 
     #print(df)
 
     # CASH email information for different banks
     #df_gs, df_ms, df_saxo, df_ubs, df_edb = extract_emails_by_bank(df)
     rules_df = split_by_counterparty(df)
-    #print(type(rules_df))
-    #print(rules_df)
 
     for k, v in rules_df.items() :
         

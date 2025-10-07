@@ -42,12 +42,42 @@ GROUP_EMAIL=os.getenv("GROUP_EMAIL")
 # Email informtion schema
 EMAIL_COLUMNS = {
 
-    "id" : pl.Utf8,
-    "subject" : pl.Utf8,
-    "from" : pl.Utf8,
-    "receivedDateTime" : pl.Utf8,#pl.Datetime,
-    "hasAttachments" : pl.Boolean,
-    "originEmail" : pl.Utf8
+    "Id" : pl.Utf8,
+    "Subject" : pl.Utf8,
+    "From" : pl.Utf8,
+    "Received DateTime" : pl.Utf8,#pl.Datetime,
+    "Attachments" : pl.Boolean,
+    "Shared Email" : pl.Utf8
+
+}
+
+# Cash columns format
+CASH_COLUMNS = {
+
+    "Fundation" : pl.Utf8,
+    "Account" : pl.Utf8, # "Account Number" : pl.Utf8,
+    "Date" : pl.Datetime,
+    "Bank" : pl.Utf8,
+    "Currency" : pl.Utf8,
+    "Type" : pl.Utf8,
+    "Amount in CCY" : pl.Float64,
+    "Amount in EUR" : pl.Float64
+
+}
+
+
+COLLATERAL_COLUMNS = {
+
+    "Fundation" : pl.Utf8,
+    "Account" : pl.Utf8, # "Account Number" : pl.Utf8,
+    "Date" : pl.Datetime,
+    "Bank" : pl.Utf8,
+    "Currency" : pl.Utf8,
+    "Total" : pl.Float64, #"Total Collateral at Bank" : pl.Float64,
+    "IM" : pl.Float64,
+    "VM" : pl.Float64,
+    "Requirement" : pl.Float64,
+    "Net Exess/Deficit" : pl.Float64
 
 }
 

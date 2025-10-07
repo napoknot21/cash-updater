@@ -79,9 +79,9 @@ def _extract_sender_columns(df: pl.DataFrame) -> pl.DataFrame:
     out = (
         df.with_row_index("_rid")
         .with_columns(
-            pl.col("from").cast(pl.Utf8).fill_null("").str.to_lowercase().alias("_from_lc"),
+            pl.col("From").cast(pl.Utf8).fill_null("").str.to_lowercase().alias("_from_lc"),
             # Normalize subject a bit for stable 'contains' (trim + collapse spaces)
-            pl.col("subject").cast(pl.Utf8).fill_null("")
+            pl.col("Subject").cast(pl.Utf8).fill_null("")
               .str.strip_chars()
               .str.replace_all(r"\s+", " ")
               .alias("_subject"),
@@ -138,7 +138,7 @@ def _init_assignment(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _filter_attachments_only(df: pl.DataFrame) -> pl.DataFrame:
+def _filter_attachments_only(df: pl.DataFrame, column : str = "Attachments") -> pl.DataFrame:
     """
     Keep rows where hasAttachments == True.
     - If 'hasAttachments' is missing, return empty (strict policy).
@@ -147,13 +147,13 @@ def _filter_attachments_only(df: pl.DataFrame) -> pl.DataFrame:
     if df.is_empty():
         return df
 
-    if "hasAttachments" not in df.columns:
+    if column not in df.columns:
         return df.clear()
 
     cond = pl.coalesce(
         [
-            pl.col("hasAttachments").cast(pl.Boolean, strict=False),
-            pl.col("hasAttachments").cast(pl.Utf8, strict=False).str.to_lowercase().is_in(["true", "1", "yes", "y"]),
+            pl.col(column).cast(pl.Boolean, strict=False),
+            pl.col(column).cast(pl.Utf8, strict=False).str.to_lowercase().is_in(["true", "1", "yes", "y"]),
         ]
     ).fill_null(False)
 
@@ -195,12 +195,14 @@ def _assign_by_emails(
 
 
 def _assign_by_domains(
-    df: pl.DataFrame,
-    name: str,
-    domains: Set[str],
-    subject_re: str,
-    filenames: Set[str],
-) -> pl.DataFrame:
+        
+        df: pl.DataFrame,
+        name: str,
+        domains: Set[str],
+        subject_re: str,
+        filenames: Set[str],
+
+    ) -> pl.DataFrame:
     """
     Assign when sender domain matches AND subject contains the configured pattern.
     If 'filenames' provided, require at least one filename match ONLY when the row has filenames.
@@ -279,7 +281,7 @@ def split_by_counterparty (
 
     # Strict: attachments only
     df2 = _filter_attachments_only(df)
-    
+
     if df2.is_empty():
         # Nothing to classify; still return a single UNMATCHED bucket for consistency
         return {"UNMATCHED": df2}

@@ -153,12 +153,12 @@ def get_inbox_messages_between (
             rows.append(
             
                 {
-                    "id": m.get("id"),
-                    "subject": m.get("subject"),
-                    "from": m.get("from", {}).get("emailAddress", {}).get("address"),
-                    "receivedDateTime": m.get("receivedDateTime"),
-                    "hasAttachments": m.get("hasAttachments"),
-                    "originEmail" : str(email)
+                    "Id": m.get("id"),
+                    "Subject": m.get("subject"),
+                    "From": m.get("from", {}).get("emailAddress", {}).get("address"),
+                    "Received DateTime": m.get("receivedDateTime"),
+                    "Attachments": m.get("hasAttachments"),
+                    "Shared Email" : str(email)
                 }
             
             )
@@ -166,7 +166,7 @@ def get_inbox_messages_between (
         next_link = data.get("@odata.nextLink")
 
         if not next_link :
-            print(f"Break here for {next_link}")
+            #print(f"Break here for {next_link}")
             break
         
         url = next_link
