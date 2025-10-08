@@ -4,12 +4,29 @@ import os
 import polars as pl
 
 from typing import Optional, Dict, Tuple, List
-from src.config import COUNTERPARTIES
+from src.config import COUNTERPARTIES, FUNDATIONS
 
 
 
 
 # ---------------------- Cash ----------------------
+
+
+def get_full_name_fundation (fund : str, fundations : Optional[Dict] = None) :
+    """
+    
+    """
+    fundations = FUNDATIONS if fundations is None else fundations
+    full_fund = fundations.get(fund, None)
+
+    return full_fund
+
+
+def get_fundation_file_path (fund : str = "HV") :
+    """
+    This function will look for the specific file
+    """
+    return None
 
 
 
@@ -26,25 +43,11 @@ def get_cash (dataframe : pl.DataFrame, md5 : Optional[str] = None, rules : Opti
     return None
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def get_cash_hv (dataframe : pl.DataFrame, md5 : Optional[str] = None, rules : Optional[Dict] = None) :
+    """
+    
+    """
+    return None
 
 
 

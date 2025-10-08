@@ -103,51 +103,57 @@ def _extract_sender_columns(df: pl.DataFrame) -> pl.DataFrame:
     return out
 
 
-def _normalize_attachments(df: pl.DataFrame, attachment_column: Optional[str]) -> pl.DataFrame:
+def _normalize_attachments(df: pl.DataFrame, attachment_column: Optional[str]) -> pl.DataFrame :
     """
     Create _files as a lowercased list[str] (empty if none).
     Works whether the column is already a list or a single string filename.
     """
-    if attachment_column and attachment_column in df.columns:
+    if attachment_column and attachment_column in df.columns :
+
         col = pl.col(attachment_column)
+        
         return df.with_columns(
+            
             pl.when(col.is_null())
-              .then(pl.lit([]))
-              .when(col.is_list())
-              .then(
-                  col.cast(pl.List(pl.Utf8))
-                     .list.eval(pl.element().cast(pl.Utf8).str.to_lowercase())
-              )
-              .otherwise(
-                  col.cast(pl.Utf8)
-                     .str.to_lowercase()
-                     .map_elements(lambda s: [s], return_dtype=pl.List(pl.Utf8))
-              )
-              .alias("_files")
-        )
+                .then(pl.lit([]))
+                .when(col.is_list())
+                .then(
+
+                    col.cast(pl.List(pl.Utf8)).list.eval(pl.element().cast(pl.Utf8).str.to_lowercase())
+                )
+                .otherwise(
+                    
+                    col.cast(pl.Utf8).str.to_lowercase().map_elements(lambda s: [s], return_dtype=pl.List(pl.Utf8))
+                
+                )
+                .alias("_files")
+            )
+    
     return df.with_columns(pl.lit([]).alias("_files"))
 
 
-def _init_assignment(df: pl.DataFrame) -> pl.DataFrame:
+def _init_assignment (df: pl.DataFrame) -> pl.DataFrame :
     """
     Add assignment columns: _assigned, _score.
     """
     return df.with_columns(
+        
         pl.lit("UNMATCHED").alias("_assigned"),
         pl.lit(-1).alias("_score"),
+    
     )
 
 
-def _filter_attachments_only(df: pl.DataFrame, column : str = "Attachments") -> pl.DataFrame:
+def _filter_attachments_only (df: pl.DataFrame, column : str = "Attachments") -> pl.DataFrame :
     """
     Keep rows where hasAttachments == True.
     - If 'hasAttachments' is missing, return empty (strict policy).
     - Accepts booleans or strings like 'true'/'1'/'yes'.
     """
-    if df.is_empty():
+    if df.is_empty() :
         return df
 
-    if column not in df.columns:
+    if column not in df.columns :
         return df.clear()
 
     cond = pl.coalesce(
@@ -162,18 +168,20 @@ def _filter_attachments_only(df: pl.DataFrame, column : str = "Attachments") -> 
 
 # -------------------- Assignment (email/domain AND subject) --------------------
 
-def _assign_by_emails(
-    df: pl.DataFrame,
-    name: str,
-    emails: Set[str],
-    subject_re: str,
-    filenames: Set[str],
-) -> pl.DataFrame:
+def _assign_by_emails (
+        
+        df: pl.DataFrame,
+        name: str,
+        emails: Set[str],
+        subject_re: str,
+        filenames: Set[str],
+    
+    ) -> pl.DataFrame :
     """
     Assign when sender email matches AND subject contains the configured pattern.
     If 'filenames' provided, require at least one filename match ONLY when the row has filenames.
     """
-    if not emails or not subject_re or subject_re in (r"^(?!)", r"(?!)"):
+    if not emails or not subject_re or subject_re in (r"^(?!)", r"(?!)") :
         return df
 
     subj_hit = pl.col("_subject").str.contains(subject_re, literal=False, strict=False)
@@ -228,7 +236,7 @@ def _assign_by_domains(
     )
 
 
-def _apply_rule(df: pl.DataFrame, name: str, rule: Dict) -> pl.DataFrame:
+def _apply_rule (df: pl.DataFrame, name: str, rule: Dict) -> pl.DataFrame :
     """
     Require subject containment for both email- and domain-based assignment.
     """
@@ -239,7 +247,7 @@ def _apply_rule(df: pl.DataFrame, name: str, rule: Dict) -> pl.DataFrame:
 
 # -------------------- Output buckets --------------------
 
-def _materialize_buckets(dfw: pl.DataFrame, original: pl.DataFrame, names: List[str]) -> Dict[str, pl.DataFrame]:
+def _materialize_buckets (dfw: pl.DataFrame, original: pl.DataFrame, names: List[str]) -> Dict[str, pl.DataFrame]:
     """
     Build the output dict of matched buckets + UNMATCHED.
     Keep original column order, append any new columns at the end (helpers dropped).
@@ -276,23 +284,25 @@ def split_by_counterparty (
 
     Returns a dict with matched buckets + an "UNMATCHED" bucket.
     """
+    rules = COUNTERPARTIES if rules is None else rules
+
     if df is None or df.is_empty() :
         return {}
 
     # Strict: attachments only
     df2 = _filter_attachments_only(df)
 
-    if df2.is_empty():
+    if df2.is_empty() :
         # Nothing to classify; still return a single UNMATCHED bucket for consistency
         return {"UNMATCHED": df2}
 
-    nrules = _normalize_rules(COUNTERPARTIES if rules is None else rules)
+    nrules = _normalize_rules(rules)
 
     work = _extract_sender_columns(df2)
     work = _normalize_attachments(work, attachment_column)
     work = _init_assignment(work)
 
-    for name, rule in nrules.items():
+    for name, rule in nrules.items() :
         work = _apply_rule(work, name, rule)
 
     return _materialize_buckets(work, df2, list(nrules.keys()))
