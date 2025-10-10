@@ -13,20 +13,9 @@ from typing import Dict, List, Optional, Any, Iterable, Union
 
 from src.config import (
     APPLICATION_ID, SECRET_VALUE_ID, AUTHORITY, SCOPES, GRAPH_BASE,
-    SHARED_MAILS, EMAIL_COLUMNS, SHARED_MAIL_1,
-    #MS, GS, SAXO, EDB, UBS,
-    COUNTERPARTIES
+    SHARED_MAILS, EMAIL_COLUMNS, SHARED_MAIL_1, COUNTERPARTIES
 )
-
-def date_to_str (date : Optional[str | dt.datetime | dt.date] = None, format : str = "%Y-%m-%d") :
-    
-    if date is None :
-        date = dt.datetime.now()
-
-    if isinstance(date, str) :
-        return str(date)
-
-    return date.strftime(format)
+from src.utils import date_to_str
 
 
 def get_token (
@@ -186,7 +175,7 @@ def download_attachments_for_message (
         user_upn: Optional[str] = None,
         attachment : Optional[str] = "/attachments"
     
-    ):
+    ) -> Optional[List] :
     """
     message_id: the Graph message id (string)
     user_upn: optional, e.g. 'alice@example.com'; when provided use /users/{user_upn}/messages/{id}
