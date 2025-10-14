@@ -71,6 +71,7 @@ CASH_COLUMNS = {
     "Currency" : pl.Utf8,
     "Type" : pl.Utf8,
     "Amount in CCY" : pl.Float64,
+    "Exchange" : pl.Float64,
     "Amount in EUR" : pl.Float64
 
 }
@@ -120,6 +121,7 @@ SAXO = {
 
 }
 
+# EDB
 EDB = {
 
     "emails": {e.strip() for e in os.getenv("EDB_EMAILS").split(";") if e.strip()},
@@ -127,8 +129,21 @@ EDB = {
     "filenames": {f.strip() for f in os.getenv("EDB_FILENAMES").split(";") if f.strip()}
 
 }
-EDB_REQUIRED_COLUMNS = {"TYPE", "DESCRIPTION", "ACCOUNT", "CURRENCY", "AMOUNT"}
 
+EBD_ATTACHMENT_DIR_ABS_PATH = os.getenv("EBD_ATTACHMENT_DIR_ABS_PATH")
+EDB_TYPE_ALLOWED = os.getenv("EDB_TYPE_ALLOWED")
+
+EDB_REQUIRED_COLUMNS = {
+
+    "TYPE" : pl.Utf8,
+    "DESCRIPTION" : pl.Utf8,
+    "ACCOUNT" : pl.Utf8,
+    "CURRENCY" : pl.Utf8,
+    "AMOUNT" : pl.Float64
+    
+}
+
+# UBS
 UBS = {
 
     "emails": {e.strip() for e in os.getenv("UBS_EMAILS").split(";") if e.strip()},

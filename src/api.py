@@ -31,8 +31,6 @@ def call_api_for_pairs (
 
     conversion = yf.download(tickers=pairs, start=target_date, progress=False, threads=True, auto_adjust=False)
 
-    #target_date = pd.to_datetime(target_date)
-
     conversion.index = pd.to_datetime(conversion.index)
 
     if target_date in conversion.index :

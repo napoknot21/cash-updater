@@ -82,7 +82,7 @@ def main (
             id = row["Id"]
             origin = row["Shared Email"]
             
-            #download_attachments_for_message(id, token, f"./attachments/{k}", origin)
+            download_attachments_for_message(id, token, f"./attachments/{k}", origin)
 
 
 
