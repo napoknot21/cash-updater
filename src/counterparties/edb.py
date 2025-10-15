@@ -6,9 +6,12 @@ import datetime as dt
 
 from typing import Optional, Dict, Tuple, List
 
-from src.config import COUNTERPARTIES, EBD_ATTACHMENT_DIR_ABS_PATH, EDB_REQUIRED_COLUMNS, EDB_TYPE_ALLOWED
+from src.config import (
+    EBD_ATTACHMENT_DIR_ABS_PATH, EDB_REQUIRED_COLUMNS, EDB_TYPE_ALLOWED, EDB_DESCRIPTION_ALLOWED,
+    CASH_COLUMNS, COUNTERPARTIES
+)
 from src.utils import get_full_name_fundation, date_to_str
-
+from src.api import call_api_for_pairs
 
 
 # ---------------------- Cash ----------------------
@@ -55,10 +58,15 @@ def get_file_by_fund_n_date (
 def process_cash_by_fund (
         
         dataframe : pl.DataFrame,
+
         date : Optional[str | dt.date | dt.datetime] = None,
         fundation : str = "HV",
 
-        type_allowed : Optional[str] = None
+        type_allowed : Optional[str] = None,
+        desc_allowed : Optional[List[str]] = None,
+
+        exchange : Optional[Dict] = None,
+        structure : Optional[Dict] = None,
     
     ) :
     """
@@ -68,13 +76,36 @@ def process_cash_by_fund (
     full_fund = get_full_name_fundation(fundation)
 
     type_allowed = EDB_TYPE_ALLOWED if type_allowed is None else type_allowed
+    desc_allowed = EDB_DESCRIPTION_ALLOWED if desc_allowed is None else desc_allowed
+
+    exchange = call_api_for_pairs(date) if exchange is None else exchange
+    structure = CASH_COLUMNS if structure is None else structure
 
     if dataframe is None or dataframe.is_empty() :
-
         return pl.DataFrame()
     
-    dataframe_cleaned = dataframe.filter(pl.col("TYPE").is_in(type_allowed) )
-    return # TODO
+    df_type = dataframe.filter(pl.col("TYPE").is_in(type_allowed) )
+    df_desc = df_type.filter(pl.col("DESCRIPTION").is_in(desc_allowed))
+
+    out = pl.DataFrame(
+        {
+            "Fundation" : full_fund,
+            "Account" : df_desc["ACCOUNT"].cast(pl.Utf8),
+            "Date" : date,
+            "Bank" : "EDB",
+            "Currency" : df_desc["CURRENCY"],
+            "Type" : df_desc["DESCRIPTION"],
+            "Amount in CCY": df_desc["AMOUNT"],
+            "Exchange": df_desc["Exchange"],
+            "Amount in EUR" : None 
+        },
+        schema_overrides=structure,
+    )
+    # TODO
+    if df_desc.is_empty():
+        return out
+
+    return out
 
 
 
