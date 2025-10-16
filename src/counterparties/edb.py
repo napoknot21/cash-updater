@@ -9,7 +9,7 @@ from typing import Optional, Dict, Tuple, List
 from src.config import (
     EBD_ATTACHMENT_DIR_ABS_PATH, EDB_REQUIRED_COLUMNS, 
     EDB_CASH_TYPE_ALLOWED, EDB_CASH_DESC_ALLOWED,
-    EDB_COLLAT_TYPE_ALLOWED, EDB_COLLAT_DESC_ALLOWED,
+    EDB_COLLAT_TYPE_ALLOWED, EDB_COLLAT_DESC_ALLOWED, EDB_COLLAT_DESC_DICT,
     CASH_COLUMNS, COLLATERAL_COLUMNS
 )
 from src.utils import get_full_name_fundation, date_to_str, convert_forex
@@ -176,25 +176,51 @@ def process_collat_by_fund (
     df_type = dataframe.filter(pl.col("TYPE").is_in(type_allowed))
     df_desc = df_type.filter(pl.col("DESCRIPTION").is_in(desc_allowed))
 
-    ccy_list = df_desc["CURRENCY"].to_list()
-    amt_list = df_desc["AMOUNT"].to_list()
+    length_desc = len(df_desc)
 
-    amt_convert_list = convert_forex(ccy_list, amt_list, exchange)
-    val_exchange = [exchange.get(c) or 1.0 for c in ccy_list]
+    df_out_dict = {
+
+        "Fundation" : full_fund,
+        "Account" : df_desc["ACCOUNT"].cast(pl.Utf8),
+        "Date" : date,
+        "Bank" : "EDB",
+        "Currency" : "EUR",
+        "Total" : [0.0] * length_desc, #"Total Collateral at Bank" : pl.Float64,
+        "IM" : [0.0] * length_desc,
+        "VM" : [0.0] * length_desc,
+        "Requirement" : [0.0] * length_desc,
+        "Net Exess/Deficit" : [0.0] * length_desc
+
+    }
+
+    # TODO
+    for description in desc_allowed :
+
+        df_temp = df_desc.filter(pl.col("DESCRIPTION") == description)
+
+        if df_temp.height == 0 :
+            continue
+
+        ccy_list = df_temp["CURRENCY"].to_list()
+        amt_list = df_temp["AMOUNT"].to_list()
+
+        convert_tmp_list = convert_forex(ccy_list, amt_list, exchange)
+
+        rows_to_affect = EDB_COLLAT_DESC_DICT.get(description)
+
+        if len(rows_to_affect) == 0 :
+            continue
+
+        for field in rows_to_affect :
+
+            df_out_dict[field] = convert_tmp_list
+        
+    # TODO
+    df_out_dict["Net Exess/Deficit"] = df_out_dict["Total"] - df_out_dict["IM"]
 
     out = pl.DataFrame(
 
-        {
-            "Fundation" : full_fund,
-            "Account" : df_desc["ACCOUNT"].cast(pl.Utf8),
-            "Date" : date,
-            "Bank" : "EDB",
-            "Type" : df_desc["DESCRIPTION"],
-            "Currency" : ccy_list,
-            "Amount in CCY": amt_list,
-            "Exchange": val_exchange,
-            "Amount in EUR" : amt_convert_list 
-        },
+        df_out_dict,
         schema_overrides=structure
 
     )

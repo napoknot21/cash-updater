@@ -152,9 +152,17 @@ EDB_CASH_DESC_ALLOWED = [
 EDB_COLLAT_TYPE_ALLOWED = [os.getenv("EDB_TYPE_ALLOWED_1"), os.getenv("EDB_TYPE_ALLOWED_2")]
 EDB_COLLAT_DESC_ALLOWED = [
     os.getenv("EDB_DESCRIPTION_ALLOWED_1"),
-    os.getenv("EDN_DESCRIPTION_ALLOWED_2"),
-    os.getenv("EDN_DESCRIPTION_ALLOWED_3")
+    os.getenv("EDB_DESCRIPTION_ALLOWED_2"),
+    os.getenv("EDB_DESCRIPTION_ALLOWED_3")
 ]
+
+EDB_COLLAT_DESC_DICT = {
+
+    os.getenv("EDB_DESCRIPTION_ALLOWED_1") : ["IM", "Requirements"],
+    os.getenv("EDB_DESCRIPTION_ALLOWED_2") : ["Total"],
+    os.getenv("EDB_DESCRIPTION_ALLOWED_3") : []
+
+}
 
 
 EDB_REQUIRED_COLUMNS = {

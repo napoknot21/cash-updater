@@ -17,14 +17,14 @@ from src.msla import *
 from src.api import call_api_for_pairs
 from src.utils import date_to_str
 
-from src.counterparties.edb import edb_cash
+from src.counterparties.edb import edb_cash, edb_collateral
 
 def main (
     
         start_date : Optional[str | dt.datetime] = None,
         end_date : Optional[str | dt.datetime] = None,
         token : Optional[str] = None,
-        fundation : Optional[str] = "WR",
+        fundation : Optional[str] = "HV",
         shared_emails: Optional[List[str]] = None,
         pairs : Optional[List[str]] = None,
         schema_df : Optional[Dict] = None
@@ -45,7 +45,7 @@ def main (
     close_values = call_api_for_pairs(start_date, pairs)
     print(f"\n{close_values}")
 
-    df = pl.DataFrame(schema=schema_df)
+    """df = pl.DataFrame(schema=schema_df)
 
     for email in shared_emails :
 
@@ -84,9 +84,9 @@ def main (
             id = row["Id"]
             origin = row["Shared Email"]
             
-            #download_attachments_for_message(id, token, f"./attachments/{k}", origin)
+            #download_attachments_for_message(id, token, f"./attachments/{k}", origin)"""
 
-    out = edb_cash(start_date, fundation, close_values)
+    out = edb_collateral(start_date, fundation, close_values)
     print(out)
 
 if __name__ == '__main__' :
