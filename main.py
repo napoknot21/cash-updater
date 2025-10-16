@@ -17,12 +17,14 @@ from src.msla import *
 from src.api import call_api_for_pairs
 from src.utils import date_to_str
 
+from src.counterparties.edb import edb_cash
 
 def main (
     
         start_date : Optional[str | dt.datetime] = None,
         end_date : Optional[str | dt.datetime] = None,
         token : Optional[str] = None,
+        fundation : Optional[str] = "WR",
         shared_emails: Optional[List[str]] = None,
         pairs : Optional[List[str]] = None,
         schema_df : Optional[Dict] = None
@@ -82,9 +84,10 @@ def main (
             id = row["Id"]
             origin = row["Shared Email"]
             
-            download_attachments_for_message(id, token, f"./attachments/{k}", origin)
+            #download_attachments_for_message(id, token, f"./attachments/{k}", origin)
 
-
+    out = edb_cash(start_date, fundation, close_values)
+    print(out)
 
 if __name__ == '__main__' :
     """
@@ -102,6 +105,11 @@ if __name__ == '__main__' :
     
     parser.add_argument(
         "--end-date", required=False, help="YYYY-MM-DD or ISO. Default: same as start or next day"
+    )
+
+    parser.add_argument(
+        "--fund", required=False, help="Fundation name initials."
+
     )
     
     args = parser.parse_args()

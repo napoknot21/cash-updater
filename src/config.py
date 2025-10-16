@@ -66,7 +66,7 @@ CASH_COLUMNS = {
 
     "Fundation" : pl.Utf8,
     "Account" : pl.Utf8, # "Account Number" : pl.Utf8,
-    "Date" : pl.Datetime,
+    "Date" : pl.Date,
     "Bank" : pl.Utf8,
     "Currency" : pl.Utf8,
     "Type" : pl.Utf8,
@@ -82,7 +82,7 @@ COLLATERAL_COLUMNS = {
 
     "Fundation" : pl.Utf8,
     "Account" : pl.Utf8, # "Account Number" : pl.Utf8,
-    "Date" : pl.Datetime,
+    "Date" : pl.Date,
     "Bank" : pl.Utf8,
     "Currency" : pl.Utf8,
     "Total" : pl.Float64, #"Total Collateral at Bank" : pl.Float64,
@@ -90,6 +90,17 @@ COLLATERAL_COLUMNS = {
     "VM" : pl.Float64,
     "Requirement" : pl.Float64,
     "Net Exess/Deficit" : pl.Float64
+
+}
+
+
+FREQUENCY_DATE_MAP = {
+
+    "Day" : "1d",
+    "Week" : "1w",
+    "Month" : "1mo",
+    "Quarter" : "1q",
+    "Year" : "1y"
 
 }
 
@@ -131,8 +142,20 @@ EDB = {
 }
 
 EBD_ATTACHMENT_DIR_ABS_PATH = os.getenv("EBD_ATTACHMENT_DIR_ABS_PATH")
-EDB_TYPE_ALLOWED = os.getenv("EDB_TYPE_ALLOWED")
-EDB_DESCRIPTION_ALLOWED = [os.getenv("EDB_DESCRIPTION_ALLOWED_1"), os.getenv("EDN_DESCRIPTION_ALLOWED_2")]
+
+EDB_CASH_TYPE_ALLOWED = os.getenv("EDB_TYPE_ALLOWED_1")
+EDB_CASH_DESC_ALLOWED = [
+    os.getenv("EDB_DESCRIPTION_ALLOWED_1"),
+    os.getenv("EDN_DESCRIPTION_ALLOWED_2")
+]
+
+EDB_COLLAT_TYPE_ALLOWED = [os.getenv("EDB_TYPE_ALLOWED_1"), os.getenv("EDB_TYPE_ALLOWED_2")]
+EDB_COLLAT_DESC_ALLOWED = [
+    os.getenv("EDB_DESCRIPTION_ALLOWED_1"),
+    os.getenv("EDN_DESCRIPTION_ALLOWED_2"),
+    os.getenv("EDN_DESCRIPTION_ALLOWED_3")
+]
+
 
 EDB_REQUIRED_COLUMNS = {
 
@@ -150,6 +173,7 @@ UBS = {
     "emails": {e.strip() for e in os.getenv("UBS_EMAILS").split(";") if e.strip()},
     "subject": os.getenv("UBS_SUBJECT_WORDS").strip(),
     "filenames": {f.strip() for f in os.getenv("UBS_FILENAMES").split(";") if f.strip()}
+
 }
 
 COUNTERPARTIES = {
@@ -162,4 +186,4 @@ COUNTERPARTIES = {
 
 }
 
-PAIRS = ["EURUSD=X", "EURCHF=X", "EURGBP=X", "EURJPY=X"]
+PAIRS = ["EURUSD=X", "EURCHF=X", "EURGBP=X", "EURJPY=X", "EURAUD=X"]
