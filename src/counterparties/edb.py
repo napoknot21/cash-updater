@@ -167,8 +167,10 @@ def process_collat_by_fund (
     exchange = call_api_for_pairs(date) if exchange is None else exchange
     structure = COLLATERAL_COLUMNS if structure is None else structure
 
+    columns = list(structure.keys())
+
     if dataframe is None or dataframe.is_empty() :
-        return pl.DataFrame(schema_overrides=structure)
+        return pl.DataFrame(schema_overrides=structure, schema=columns)
     
     if isinstance(type_allowed, str): type_allowed = [type_allowed]
     if isinstance(desc_allowed, str): desc_allowed = [desc_allowed]

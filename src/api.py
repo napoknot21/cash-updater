@@ -97,6 +97,3 @@ def normalize_fx_dict (raw_fx : Optional[Dict[str, float]] = None, ends_with : s
             normalized[ccy] = float(val)
 
     return normalized
-
-
-

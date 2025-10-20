@@ -115,6 +115,8 @@ MS = {
 
 }
 
+
+# GS
 GS = {
 
     "emails": {e.strip() for e in os.getenv("GS_EMAILS").split(";") if e.strip()},
@@ -122,6 +124,42 @@ GS = {
     "filenames": {f.strip() for f in os.getenv("GS_FILENAMES").split(";") if f.strip()}
 
 }
+
+GS_REQUIRED_COLUMNS = {
+
+    "GS Entity" : pl.Utf8,
+    "Account Number" : pl.Utf8,
+    "Post/Held" : pl.Utf8,
+    "Quantity" : pl.Float64,
+    "Currency" : pl.Utf8,
+
+}
+
+GS_TARGET_FIELDS = {
+
+    "Total Collateral" : pl.Float64,
+    "CP Initial Margin" : pl.Float64,
+    "Total Requirement" : pl.Float64,
+    "Total Exposure" : pl.Float64,
+    "Reference ccy" : pl.Utf8
+}
+
+
+GS_FILENAMES_CASH = os.getenv("GS_FILENAMES_CASH")
+GS_FILENAMES_COLLATERAL = os.getenv("GS_FILENAMES_COLLATERAL")
+
+GS_FILENAMES = os.getenv("GS_FILENAMES")
+
+GS_ENTITY = os.getenv("GS_ENTITY")
+
+GS_ACCOUNTS = {
+
+    "HV" : os.getenv("GS_ACCOUNT_HV"),
+    "WR" : os.getenv("GS_ACCOUNT_WR")
+
+}
+
+GS_ATTACHMENT_DIR_ABS_PATH = os.getenv("GS_ATTACHMENT_DIR_ABS_PATH")
 
 # SAXO
 SAXO = {
@@ -145,6 +183,7 @@ SAXO_REQUIRED_COLUMNS = {
 
 SAXO_FILENAMES = os.getenv("SAXO_FILENAMES")
 SAXO_ATTACHMENT_DIR_ABS_PATH = os.getenv("SAXO_ATTACHMENT_DIR_ABS_PATH")
+
 
 # EDB
 EDB = {
@@ -188,7 +227,6 @@ EDB_COLLAT_DESC_DICT = {
 
 }
 
-
 EDB_REQUIRED_COLUMNS = {
 
     "TYPE" : pl.Utf8,
@@ -199,6 +237,7 @@ EDB_REQUIRED_COLUMNS = {
     
 }
 
+
 # UBS
 UBS = {
 
@@ -208,6 +247,8 @@ UBS = {
 
 }
 
+
+# Counterparties
 COUNTERPARTIES = {
 
     "MS" : MS,
@@ -218,4 +259,6 @@ COUNTERPARTIES = {
 
 }
 
+
+# Forex Pairs
 PAIRS = ["EURUSD=X", "EURCHF=X", "EURGBP=X", "EURJPY=X", "EURAUD=X"]

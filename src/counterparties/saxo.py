@@ -157,8 +157,10 @@ def process_collat_by_fund (
     exchange = call_api_for_pairs(date) if exchange is None else exchange
     structure = COLLATERAL_COLUMNS if structure is None else structure
 
+    columns = list(structure.keys())
+
     if dataframe is None or dataframe.is_empty() :
-        return pl.DataFrame(schema_overrides=structure)
+        return pl.DataFrame(schema_overrides=structure, schema=columns)
 
     ccy_list = dataframe["AccountCurrency"].to_list()
 
@@ -198,11 +200,11 @@ def process_collat_by_fund (
     df_out_dict = {
 
         "Fundation" : full_fund,
-        "Account" : dataframe["Account"].item(0), #.to_list(),
+        "Account" : dataframe["Account"].item(0),
         "Date" : date,
         "Bank" : "Saxo Bank",
         "Currency" : "EUR",
-        "Total" : 0.0, #"Total Collateral at Bank" : pl.Float64,
+        "Total" : 0.0, # "Total Collateral at Bank" : pl.Float64,
         "IM" : 0.0,
         "VM" : 0.0,
         "Requirement" : 0.0,
@@ -226,8 +228,6 @@ def process_collat_by_fund (
         schema_overrides=structure
 
     )
-
-    path = out.write_excel("test_saxo.xlsx")
 
     return out
 
@@ -284,6 +284,6 @@ def get_df_from_file (
     specific_cols = list(schema_overrides.keys())
 
     dataframe = pl.read_csv(file_abs_path, separator=separator, schema_overrides=schema_overrides,)
-    dataframe.write_excel("testfullsaxo.xlsx")
+
     return dataframe
 

@@ -19,13 +19,14 @@ from src.utils import date_to_str
 
 from src.counterparties.edb import edb_cash, edb_collateral
 from src.counterparties.saxo import saxo_cash, saxo_collateral
+from src.counterparties.gs import gs_cash, gs_collateral
 
 def main (
     
         start_date : Optional[str | dt.datetime] = None,
         end_date : Optional[str | dt.datetime] = None,
         token : Optional[str] = None,
-        fundation : Optional[str] = "HV",
+        fundation : Optional[str] = "WR",
         shared_emails: Optional[List[str]] = None,
         pairs : Optional[List[str]] = None,
         schema_df : Optional[Dict] = None
@@ -87,7 +88,7 @@ def main (
             
             #download_attachments_for_message(id, token, f"./attachments/{k}", origin)"""
 
-    out = saxo_collateral(start_date, fundation, close_values)
+    out = gs_collateral(start_date, fundation, close_values)
 
     print(out)
 
