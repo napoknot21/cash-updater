@@ -18,6 +18,7 @@ from src.api import call_api_for_pairs
 from src.utils import date_to_str
 
 from src.counterparties.edb import edb_cash, edb_collateral
+from src.counterparties.saxo import saxo_cash, saxo_collateral
 
 def main (
     
@@ -29,7 +30,7 @@ def main (
         pairs : Optional[List[str]] = None,
         schema_df : Optional[Dict] = None
     
-    ) -> None:
+    ) -> None :
     """
     Main entry point
     """
@@ -86,7 +87,8 @@ def main (
             
             #download_attachments_for_message(id, token, f"./attachments/{k}", origin)"""
 
-    out = edb_collateral(start_date, fundation, close_values)
+    out = saxo_collateral(start_date, fundation, close_values)
+
     print(out)
 
 if __name__ == '__main__' :

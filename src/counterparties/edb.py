@@ -176,20 +176,18 @@ def process_collat_by_fund (
     df_type = dataframe.filter(pl.col("TYPE").is_in(type_allowed))
     df_desc = df_type.filter(pl.col("DESCRIPTION").is_in(desc_allowed))
 
-    length_desc = len(df_desc)
-
     df_out_dict = {
 
         "Fundation" : full_fund,
-        "Account" : df_desc["ACCOUNT"].cast(pl.Utf8),
+        "Account" : df_desc["ACCOUNT"].item(0),
         "Date" : date,
         "Bank" : "EDB",
         "Currency" : "EUR",
-        "Total" : [0.0] * length_desc, #"Total Collateral at Bank" : pl.Float64,
-        "IM" : [0.0] * length_desc,
-        "VM" : [0.0] * length_desc,
-        "Requirement" : [0.0] * length_desc,
-        "Net Exess/Deficit" : [0.0] * length_desc
+        "Total" : 0.0, #"Total Collateral at Bank" : pl.Float64,
+        "IM" : 0.0,
+        "VM" : 0.0,
+        "Requirement" : 0.0,
+        "Net Exess/Deficit" : 0.0
 
     }
 
@@ -204,7 +202,8 @@ def process_collat_by_fund (
         ccy_list = df_temp["CURRENCY"].to_list()
         amt_list = df_temp["AMOUNT"].to_list()
 
-        convert_tmp_list = convert_forex(ccy_list, amt_list, exchange)
+        convert_tmp = (convert_forex(ccy_list, amt_list, exchange))
+        tmp_sum = round(sum(convert_tmp), 3)
 
         rows_to_affect = EDB_COLLAT_DESC_DICT.get(description)
 
@@ -213,10 +212,9 @@ def process_collat_by_fund (
 
         for field in rows_to_affect :
 
-            df_out_dict[field] = convert_tmp_list
+            df_out_dict[field] = tmp_sum
         
-    # TODO
-    df_out_dict["Net Exess/Deficit"] = df_out_dict["Total"] - df_out_dict["IM"]
+    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) - df_out_dict.get("IM", 0.0)
 
     out = pl.DataFrame(
 
@@ -225,10 +223,7 @@ def process_collat_by_fund (
 
     )
 
-    if df_desc.is_empty():
-        return out
-
-    print(df_desc)
+    path = out.write_excel("test.xlsx")
 
     return out
 

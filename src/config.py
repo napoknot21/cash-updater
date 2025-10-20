@@ -123,7 +123,7 @@ GS = {
 
 }
 
-
+# SAXO
 SAXO = {
 
     "emails": {e.strip() for e in os.getenv("SAXO_EMAILS").split(";") if e.strip()},
@@ -131,6 +131,20 @@ SAXO = {
     "filenames": {f.strip() for f in os.getenv("SAXO_FILENAMES").split(";") if f.strip()}
 
 }
+
+SAXO_REQUIRED_COLUMNS = {
+
+    "Account" : pl.Utf8,
+    "AccountCurrency" : pl.Utf8,
+    "Balance" : pl.Float64,
+    "TotalEquity" : pl.Float64,
+    "ValueDateCashBalance" : pl.Float64,
+    "AccountFunding" : pl.Float64
+    
+}
+
+SAXO_FILENAMES = os.getenv("SAXO_FILENAMES")
+SAXO_ATTACHMENT_DIR_ABS_PATH = os.getenv("SAXO_ATTACHMENT_DIR_ABS_PATH")
 
 # EDB
 EDB = {
@@ -142,24 +156,34 @@ EDB = {
 }
 
 EBD_ATTACHMENT_DIR_ABS_PATH = os.getenv("EBD_ATTACHMENT_DIR_ABS_PATH")
-
 EDB_CASH_TYPE_ALLOWED = os.getenv("EDB_TYPE_ALLOWED_1")
+
 EDB_CASH_DESC_ALLOWED = [
+
     os.getenv("EDB_DESCRIPTION_ALLOWED_1"),
     os.getenv("EDN_DESCRIPTION_ALLOWED_2")
+
 ]
 
-EDB_COLLAT_TYPE_ALLOWED = [os.getenv("EDB_TYPE_ALLOWED_1"), os.getenv("EDB_TYPE_ALLOWED_2")]
+EDB_COLLAT_TYPE_ALLOWED = [
+    
+    os.getenv("EDB_TYPE_ALLOWED_1"),
+    os.getenv("EDB_TYPE_ALLOWED_2")
+
+]
+
 EDB_COLLAT_DESC_ALLOWED = [
+
     os.getenv("EDB_DESCRIPTION_ALLOWED_1"),
     os.getenv("EDB_DESCRIPTION_ALLOWED_2"),
     os.getenv("EDB_DESCRIPTION_ALLOWED_3")
+
 ]
 
 EDB_COLLAT_DESC_DICT = {
 
-    os.getenv("EDB_DESCRIPTION_ALLOWED_1") : ["IM", "Requirements"],
-    os.getenv("EDB_DESCRIPTION_ALLOWED_2") : ["Total"],
+    os.getenv("EDB_DESCRIPTION_ALLOWED_1") : ["Total"],
+    os.getenv("EDB_DESCRIPTION_ALLOWED_2") : ["IM", "Requirement"],
     os.getenv("EDB_DESCRIPTION_ALLOWED_3") : []
 
 }
