@@ -181,46 +181,12 @@ def process_collat_by_fund (
 
 
     df_out_dict["Total"] = (dataframe["TotalEquity"])
-    df_out_dict["VM"] = dataframe["ValueDateCashBalance"] - df_out_dict.get("Total", 0.0)
-    df_out_dict["Requirement"] = (dataframe["AccountFunding"])
-
-    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) - df_out_dict.get("IM", 0.0)
-
-    """
-    # Alternative ?
-
-    amt_list = dataframe["TotalEquity"].to_list()
-    date_cash_list = dataframe["ValueDateCashBalance"].to_list()
-    fund_list = dataframe["AccountFunding"].to_list()
-
-    amt_convert_list = convert_forex(ccy_list, amt_list, exchange)
-    cash_bal_list = convert_forex(ccy_list, date_cash_list, exchange)
-    acc_fund_list = convert_forex(ccy_list, fund_list, exchange)
-
-    df_out_dict = {
-
-        "Fundation" : full_fund,
-        "Account" : dataframe["Account"].item(0),
-        "Date" : date,
-        "Bank" : "Saxo Bank",
-        "Currency" : "EUR",
-        "Total" : 0.0, # "Total Collateral at Bank" : pl.Float64,
-        "IM" : 0.0,
-        "VM" : 0.0,
-        "Requirement" : 0.0,
-        "Net Exess/Deficit" : 0.0
-
-    }
-
-
-    df_out_dict["Total"] = sum(amt_convert_list)
-    df_out_dict["VM"] = sum(cash_bal_list) - df_out_dict.get("Total", 0.0)
-    df_out_dict["Requirement"] = sum(acc_fund_list)
-
-    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) - df_out_dict.get("IM", 0.0)
     
-    """
-
+    df_out_dict["VM"] = dataframe["ValueDateCashBalance"] - df_out_dict.get("Total", 0.0)
+    
+    df_out_dict["Requirement"] = df_out_dict["IM"] + df_out_dict["VM"]#(dataframe["AccountFunding"])
+    print(dataframe["AccountFunding"])
+    df_out_dict["Net Exess/Deficit"] = df_out_dict["Total"] + df_out_dict["Requirement"]
 
     out = pl.DataFrame(
 
@@ -255,7 +221,7 @@ def get_file_by_fund_n_date (
     dir_abs_path = SAXO_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
 
     full_fundation = get_full_name_fundation(fundation)
-    
+    print(full_fundation)
     for entry in os.listdir(dir_abs_path) :
 
         if date in entry and rules in entry :
@@ -284,6 +250,6 @@ def get_df_from_file (
     specific_cols = list(schema_overrides.keys())
 
     dataframe = pl.read_csv(file_abs_path, separator=separator, schema_overrides=schema_overrides,)
-
+    dataframe.write_excel("saxoooo.xlsx")
     return dataframe
 

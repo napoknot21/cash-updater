@@ -215,8 +215,11 @@ def process_collat_by_fund (
         for field in rows_to_affect :
 
             df_out_dict[field] = tmp_sum
-        
-    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) - df_out_dict.get("IM", 0.0)
+    
+    df_out_dict["IM"] = (-1) * df_out_dict["IM"]
+    df_out_dict["Requirement"] = (-1) * df_out_dict["Requirement"]
+
+    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) + df_out_dict.get("Requirement", 0.0)
 
     out = pl.DataFrame(
 
@@ -263,7 +266,7 @@ def get_file_by_fund_n_date (
 
         if date in entry and formatted_fund in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation}\n")
+            print(f"\n[+] File found for {date} and for {full_fundation} : {entry}\n")
             return entry
         
     return None

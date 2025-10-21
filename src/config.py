@@ -105,13 +105,37 @@ FREQUENCY_DATE_MAP = {
 }
 
 
-# Counterparties
+## Counterparties
 
+# MS
 MS = {
 
     "emails": {e.strip() for e in os.getenv("MS_EMAILS").split(";") if e.strip()},
     "subject": os.getenv("MS_SUBJECT_WORDS").strip(),
     "filenames": {f.strip() for f in os.getenv("MS_FILENAMES").split(";") if f.strip()},
+
+}
+
+MS_REQUIRED_COLUMNS = {
+
+    "Reporting Currency" : pl.Utf8,
+    "Rounding Amount" : pl.Float64,
+    "Initial Margin Requirement" : pl.Float64,
+    "Net Margin Requirements above Threshold" : pl.Float64,
+    "Total Net Margin Requirement Movement due from/(due to) MS" : pl.Float64
+
+}
+
+MS_FILENAMES = os.getenv("MS_FILENAMES")
+
+MS_ATTACHMENT_DIR_ABS_PATH = os.getenv("MS_ATTACHMENT_DIR_ABS_PATH")
+
+MS_ENTITY = os.getenv("MS_ENTITY")
+
+MS_ACCOUNTS = {
+
+    "HV" : os.getenv("MS_ACCOUNT_HV"),
+    "WR" : os.getenv("MS_ACCOUNT_WR")
 
 }
 
@@ -141,9 +165,10 @@ GS_TARGET_FIELDS = {
     "CP Initial Margin" : pl.Float64,
     "Total Requirement" : pl.Float64,
     "Total Exposure" : pl.Float64,
-    "Reference ccy" : pl.Utf8
-}
+    "Reference ccy" : pl.Utf8,
+    "Exposure (VM)" : pl.Float64,
 
+}
 
 GS_FILENAMES_CASH = os.getenv("GS_FILENAMES_CASH")
 GS_FILENAMES_COLLATERAL = os.getenv("GS_FILENAMES_COLLATERAL")

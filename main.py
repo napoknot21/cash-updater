@@ -20,13 +20,14 @@ from src.utils import date_to_str
 from src.counterparties.edb import edb_cash, edb_collateral
 from src.counterparties.saxo import saxo_cash, saxo_collateral
 from src.counterparties.gs import gs_cash, gs_collateral
+from src.counterparties.ms import ms_cash
 
 def main (
     
         start_date : Optional[str | dt.datetime] = None,
         end_date : Optional[str | dt.datetime] = None,
         token : Optional[str] = None,
-        fundation : Optional[str] = "WR",
+        fundation : Optional[str] = "HV",
         shared_emails: Optional[List[str]] = None,
         pairs : Optional[List[str]] = None,
         schema_df : Optional[Dict] = None
@@ -35,10 +36,11 @@ def main (
     """
     Main entry point
     """
+    """
     token = get_token() if token is None else token
     shared_emails = SHARED_MAILS if shared_emails is None else shared_emails
     schema_df = EMAIL_COLUMNS if schema_df is None else schema_df
-    
+    """
     pairs = PAIRS if pairs is None else pairs
 
     start_date = date_to_str(start_date)
@@ -47,7 +49,8 @@ def main (
     close_values = call_api_for_pairs(start_date, pairs)
     print(f"\n{close_values}")
 
-    """df = pl.DataFrame(schema=schema_df)
+    """
+    df = pl.DataFrame(schema=schema_df)
 
     for email in shared_emails :
 
@@ -87,8 +90,10 @@ def main (
             origin = row["Shared Email"]
             
             #download_attachments_for_message(id, token, f"./attachments/{k}", origin)"""
-
-    out = gs_collateral(start_date, fundation, close_values)
+    fundation = "HV"
+    out = saxo_cash(start_date, fundation, close_values)
+    
+    out.write_excel("testt.xlsx")
 
     print(out)
 
