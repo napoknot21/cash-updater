@@ -34,12 +34,12 @@ def ms_cash (
     dir_abs_path = MS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = MS_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
 
-    rules = MS_FILENAMES if rules is None else rules
+    rules = MS_FILENAMES_CASH if rules is None else rules
 
     filename = get_file_by_fund_n_date(date, fundation, rules=rules)
     full_path = os.path.join(dir_abs_path, filename)
 
-    df = extract_collateral_fields_to_polars(full_path)
+    df = get_df_from_file_cash(full_path)
 
     out = process_cash_by_fund(df, date, fundation, exchange=exchange)
 
@@ -62,15 +62,15 @@ def ms_collateral (
     """
     
     """
-    dir_abs_path = GS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
-    schema_overrides = GS_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
+    dir_abs_path = MS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
+    schema_overrides = MS_TARGET_FIELDS if schema_overrides is None else schema_overrides
 
-    rules = GS_FILENAMES_COLLATERAL if rules is None else rules
+    rules = MS_FILENAMES_COLLATERAL if rules is None else rules
 
     filename = get_file_by_fund_n_date(date, fundation, rules=rules, extensions=extensions)
     full_path = os.path.join(dir_abs_path, filename)
 
-    df = extract_collateral_fields_to_polars(full_path)
+    df = extract_collateral_fields_to_polars(full_path, target_fields=schema_overrides, fundation=fundation)
     
     out = process_collat_by_fund(df, date, fundation, exchange=exchange)
 
@@ -109,8 +109,8 @@ def process_cash_by_fund (
     if dataframe is None or dataframe.is_empty() :
         return pl.DataFrame(schema_overrides=structure)
 
-    ccy_list = ["EUR"]
-    amt_list = dataframe["Rounding Amount"].to_list()
+    ccy_list = dataframe["ccy"].to_list()
+    amt_list = dataframe["quantity"].to_list()
 
     amt_convert_list = convert_forex(ccy_list, amt_list, exchange)
     val_exchange = [exchange.get(c) or 1.0 for c in ccy_list]
@@ -225,7 +225,7 @@ def get_file_by_fund_n_date (
         date : Optional[str | dt.date | dt.datetime] = None,
         fundation : Optional[str] = "HV",
 
-        d_format : str = "%B %d, %Y",
+        d_format : str = "%Y%m%d",
 
         rules : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
@@ -239,45 +239,15 @@ def get_file_by_fund_n_date (
     """
     date = date_to_str(date, d_format)
 
+    rules = MS_FILENAMES_CASH if rules is None else rules
     dir_abs_path = MS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
-    rules = MS_FILENAMES if rules is None else rules
 
     full_fundation = get_full_name_fundation(fundation).upper()
-    fund_words = [w for w in full_fundation.split() if w]
+    account = MS_ACCOUNTS.get(fundation, "HV")
 
     for entry in os.listdir(dir_abs_path) :
-        
-        # Here we don't have a current way to determine if a file it's for HV, WR, etc...
-        # We have to open each file (not optimal but no other solution for now...)
 
-        lines = get_info_from_file_collateral(os.path.join(dir_abs_path, entry), n_lines=n_lines)
-
-        date_line_idx = None
-
-        for i, ln in enumerate(lines) :
-        
-            if date in ln :
-
-                date_line_idx = i
-                break
-        
-        if date_line_idx is None :
-            continue  # no date found at all
-
-        # Look for the fundation in a different line
-        found_fund = False
-
-        for j, ln in enumerate(lines) :
-
-            if j == date_line_idx :
-                continue  # skip same line as the date
-            
-            if fund_words[0] in ln.upper() or fundation.upper() in ln.upper() :
-                
-                found_fund = True
-                break
-
-        if found_fund :
+        if rules in entry and account in entry and date in entry :
 
             print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}\n")
             return entry
@@ -300,65 +270,115 @@ def get_df_from_file_cash (
     file_abs_path = get_file_by_fund_n_date(date, fundation) if file_abs_path is None else file_abs_path
 
     schema_overrides = MS_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
-
-    # TODO : Using pandas temp but should chage to polars
-    # dataframe = pl.read_excel(file_abs_path, read_options={"skip_rows" : skip_rows}, schema_overrides=schema_overrides)
-    dataframe = pd.read_excel(file_abs_path, skiprows=skip_rows)
-    df_clean = dataframe.dropna(subset=["Actual/Pending"]) # Help us to clean the df
+    columns = list(schema_overrides.keys())
     
-    return pl.from_pandas(df_clean, schema_overrides=schema_overrides)
+    dataframe = pl.read_excel(file_abs_path, schema_overrides={c : pl.Utf8 for c in schema_overrides.keys()}, columns=columns, drop_empty_rows=True)
+    
+    # Drop rows where all cells are null or blank
+    df_clean = dataframe.filter(
+        ~pl.all_horizontal(
+            [
+                pl.col(c).is_null() | (pl.col(c).cast(pl.Utf8).str.strip_chars() == "")
+                for c in dataframe.columns
+            ]
+        )
+    )
+
+    # Cast numerical values
+    df = df_clean.with_columns(
+    
+        pl.col("quantity").map_elements(parse_amount, return_dtype=pl.Float64)
+    
+    )
+
+    return df
 
 
 def get_info_from_file_collateral (
         
         file_abs_path : Optional[str] = None,
-        date : Optional[str | dt.datetime | dt.date] = None,
-        fundation : Optional[str] = "HV",
-        n_lines : Optional[int] = 3
+        rules : Optional[int] = None,
+        fundation : Optional[str] = None,
+        target_fields : Optional[Dict] = None,
 
-    ) -> str :
+    ) -> Optional[pl.DataFrame] :
     """
     
     """
-    reader = PdfReader(file_abs_path)
-    text = reader.pages[0].extract_text() or ""
-    
-    if n_lines is None :
-    
-        tables = camelot.read_pdf(file_abs_path, pages="1", flavor="lattice")
+    rules = MS_TABLE_PAGES if rules is None else rules
+    target_fields = MS_TARGET_FIELDS if target_fields is None else target_fields
+
+    page = rules.get(fundation)
+    tables = camelot.read_pdf(file_abs_path, pages=str(page), flavor="stream")
+
+    n_tables = tables.n
+
+    keywords = list(target_fields.keys())
+    best_match = None
+    best_score = 0
+
+    for i in range(n_tables) :
+
+        df = tables[i].df
+        rows, cols = df.shape
+
+        if cols < 2 :
+            continue
         
-        df_raw = pl.from_pandas(tables[0].df)
-        
-        keys = df_raw["0"].to_list()
-        vals = df_raw["1"].to_list()
-        df_wide = pl.DataFrame([dict(zip(keys, vals))])
+        if rows >= 25 :
+            continue
 
-        return df_wide
+        df_flat = " ".join(df.astype(str).values.flatten()).lower()
 
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        # Count keyword matches
+        score = sum(1 for word in keywords if word.lower() in df_flat)
 
-    return lines[:n_lines]
+        if score > best_score :
+
+            best_score = score
+            best_match = i
+
+    if best_match is not None and best_score > 0 :
+
+        print(f"[+] Information successfully found and extracted !\n")
+        df_best = tables[best_match].df
+
+        return pl.from_pandas(df_best)
+
+    print("[!] No matching table found\n")
+
+    return None
 
 
 def extract_collateral_fields_to_polars (
         
         file_abs_path: str,
         target_fields: Optional[Dict] = None,
+        fundation : str = "HV"
     
     ) -> Optional[pl.DataFrame] :
     """
     
     """
-    target_fields = MS_REQUIRED_COLUMNS if target_fields is None else target_fields
+    target_fields = MS_TARGET_FIELDS if target_fields is None else target_fields
     
-    dataframe = get_info_from_file_collateral(file_abs_path, n_lines=None)
+    dataframe = get_info_from_file_collateral(file_abs_path, fundation=fundation, target_fields=target_fields)
+
+    if dataframe is None or dataframe.height == 0 :
+        return None
     
+    cols = dataframe.columns
+    
+    key_col = cols[0]
+    val_cols = cols[1:]
+
     df_parsed = dataframe.with_columns(
         [
             pl.col(c).map_elements(parse_amount, return_dtype=pl.Float64).alias(c)
             for c in dataframe.columns
         ]
     )
+    print(df_parsed)
 
     common_cols = [c for c in df_parsed.columns if c in target_fields]
 

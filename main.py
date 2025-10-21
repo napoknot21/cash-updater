@@ -20,7 +20,8 @@ from src.utils import date_to_str
 from src.counterparties.edb import edb_cash, edb_collateral
 from src.counterparties.saxo import saxo_cash, saxo_collateral
 from src.counterparties.gs import gs_cash, gs_collateral
-from src.counterparties.ms import ms_cash
+from src.counterparties.ms import ms_cash, ms_collateral
+#from src.counterparties.ubs import ubs_cash, ubs_collateral
 
 def main (
     
@@ -46,7 +47,7 @@ def main (
     start_date = date_to_str(start_date)
     end_date = date_to_str(end_date)
     
-    close_values = call_api_for_pairs(start_date, pairs)
+    close_values = call_api_for_pairs(None, pairs)
     print(f"\n{close_values}")
 
     """
@@ -89,11 +90,12 @@ def main (
             id = row["Id"]
             origin = row["Shared Email"]
             
-            #download_attachments_for_message(id, token, f"./attachments/{k}", origin)"""
-    fundation = "HV"
-    out = saxo_cash(start_date, fundation, close_values)
+            download_attachments_for_message(id, token, f"./attachments/{k}", origin)
+    """
+    fundation = "WR"
+    out = ms_collateral(start_date, fundation, close_values)
     
-    out.write_excel("testt.xlsx")
+    #out.write_excel("testt.xlsx")
 
     print(out)
 

@@ -118,11 +118,26 @@ MS = {
 
 MS_REQUIRED_COLUMNS = {
 
-    "Reporting Currency" : pl.Utf8,
-    "Rounding Amount" : pl.Float64,
-    "Initial Margin Requirement" : pl.Float64,
-    "Net Margin Requirements above Threshold" : pl.Float64,
-    "Total Net Margin Requirement Movement due from/(due to) MS" : pl.Float64
+    "account" : pl.Utf8,
+    "ccy" : pl.Utf8,
+    "quantity" : pl.Float64
+}
+
+MS_TARGET_FIELDS = {
+
+    "Net MTM" : pl.Float64,
+    "Upfront Amount Rec / (Pay)" : pl.Float64,
+    "Customer Balances" : pl.Float64
+
+}
+
+MS_FILENAMES_CASH = os.getenv("MS_FILENAMES_CASH")
+MS_FILENAMES_COLLATERAL = os.getenv("MS_FILENAMES_COLLATERAL")
+
+MS_TABLE_PAGES = {
+
+    "HV" : os.getenv("MS_TABLE_PAGE_HV"),
+    "WR" : os.getenv("MS_TABLE_PAGE_WR")
 
 }
 
