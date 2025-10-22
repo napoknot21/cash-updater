@@ -224,7 +224,7 @@ def get_file_by_fund_n_date (
 
         if date in entry and rules in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation}\n")
+            print(f"\n[+] File found for {date} and for {full_fundation}")
             return entry
         
     return None
@@ -248,6 +248,6 @@ def get_df_from_file (
     specific_cols = list(schema_overrides.keys())
 
     dataframe = pl.read_csv(file_abs_path, separator=separator, schema_overrides=schema_overrides,)
-    dataframe.write_excel("saxoooo.xlsx")
+
     return dataframe
 

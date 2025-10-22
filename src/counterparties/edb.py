@@ -133,8 +133,6 @@ def process_cash_by_fund (
 
     )
 
-    print(df_desc)
-
     return out
 
 
@@ -228,8 +226,6 @@ def process_collat_by_fund (
 
     )
 
-    path = out.write_excel("test.xlsx")
-
     return out
 
 
@@ -259,14 +255,14 @@ def get_file_by_fund_n_date (
 
     if formatted_fund is None :
 
-        print(f"\n[-] Fundation not found. Retry with a correct fundation name...\n")
+        print(f"\n[-] Fundation not found. Retry with a correct fundation name...")
         return full_fundation
     
     for entry in os.listdir(dir_abs_path) :
 
         if date in entry and formatted_fund in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation} : {entry}\n")
+            print(f"\n[+] File found for {date} and for {full_fundation} : {entry}")
             return entry
         
     return None
@@ -299,7 +295,7 @@ def edb_fundation_name_format (fundation : str, format : str = "_") :
     """
     if fundation is None :
 
-        print(f"\n[-] Fundation is None. Retry with a correct fundation name...\n")
+        print(f"\n[-] Fundation is None. Retry with a correct fundation name...")
         return None
 
     strip_fundation = fundation.strip()

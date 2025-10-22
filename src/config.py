@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import re
 import polars as pl
 
 from dotenv import load_dotenv

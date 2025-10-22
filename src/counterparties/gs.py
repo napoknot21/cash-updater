@@ -124,8 +124,6 @@ def process_cash_by_fund (
 
     )
 
-    print(dataframe)
-
     return out
 
 
@@ -243,7 +241,7 @@ def get_file_by_fund_n_date (
 
             if entry.lower().endswith(extensions) : 
 
-                print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}\n")
+                print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}")
                 return entry
         
     return None
@@ -267,7 +265,7 @@ def get_df_from_file_cash (
 
     # TODO : Using pandas temp but should chage to polars
     # dataframe = pl.read_excel(file_abs_path, read_options={"skip_rows" : skip_rows}, schema_overrides=schema_overrides)
-    dataframe = pd.read_excel(file_abs_path, skiprows=skip_rows)
+    dataframe = pd.read_excel(file_abs_path, skiprows=skip_rows, engine="xlrd")
     df_clean = dataframe.dropna(subset=["Actual/Pending"]) # Help us to clean the df
     
     return pl.from_pandas(df_clean, schema_overrides=schema_overrides)

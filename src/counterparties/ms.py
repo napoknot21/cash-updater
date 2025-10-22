@@ -246,7 +246,7 @@ def get_file_by_fund_n_date (
 
         if rules in entry and account in entry and date in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}\n")
+            print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}")
             return entry
         
     return None
@@ -337,7 +337,7 @@ def get_info_from_file_collateral (
 
     if best_match is not None and best_score > 0 :
 
-        print(f"[+] Information successfully found and extracted !\n")
+        print(f"\n[+] Information successfully found and extracted !")
         df_best = tables[best_match].df
 
         return pl.from_pandas(df_best)
