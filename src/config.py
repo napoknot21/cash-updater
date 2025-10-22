@@ -287,6 +287,7 @@ UBS = {
 
 }
 
+UBS_ATTACHMENT_DIR_ABS_PATh = os.getenv("UBS_ATTACHMENT_DIR_ABS_PATH")
 
 # Counterparties
 COUNTERPARTIES = {

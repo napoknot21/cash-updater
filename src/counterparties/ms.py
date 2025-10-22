@@ -163,49 +163,46 @@ def process_collat_by_fund (
     exchange = call_api_for_pairs(date) if exchange is None else exchange
     structure = COLLATERAL_COLUMNS if structure is None else structure
 
-    target = GS_TARGET_FIELDS if target is None else target
+    target = MS_TARGET_FIELDS if target is None else target
     columns = list(structure.keys())
 
-    entity = GS_ENTITY if entity is None else entity
+    entity = MS_ENTITY if entity is None else entity
 
     if df is None or df.is_empty() :
         return pl.DataFrame(schema_overrides=structure, schema=columns)
     
-    account = GS_ACCOUNTS.get(fundation, "000000000")
+    n = df.height
+
+    account = MS_ACCOUNTS.get(fundation, "000000000")
+
+    # TODO  : Look for a method that extract this from the pdf. For now it's hardcoded
+    #         But the rest of the method is dynamical
+    ccy_list = "EUR"
+    ccy_list = [ccy_list]
+
+    vm_list = convert_forex(ccy_list, df["Net MTM"].to_list(), exchange=exchange)
+    im_list = convert_forex(ccy_list, df["Upfront Amount Rec / (Pay)"].to_list(), exchange)
+
+    col_list = convert_forex(ccy_list, df["Customer Balances"].to_list(), exchange)
+    
 
     df_out_dict = {
 
-        "Fundation" : full_fund,
+        "Fundation" : str(full_fund),
         "Account" : account,
         "Date" : date,
         "Bank" : entity,
-        "Currency" : None,
-        "Total" : 0.0, #"Total Collateral at Bank" : pl.Float64,
-        "IM" : 0.0,
-        "VM" : 0.0,
+        "Currency" : ccy_list,
+        "Total" : col_list, #"Total Collateral at Bank" : pl.Float64,
+        "IM" : im_list,
+        "VM" : vm_list,
         "Requirement" : 0.0,
         "Net Exess/Deficit" : 0.0
 
     }
-
-
-    ccy_list = df["Reference ccy"].to_list()
-
-    exp_list = convert_forex(ccy_list, df["Total Exposure"].to_list(), exchange)
-    req_list = convert_forex(ccy_list, df["Total Requirement"].to_list(), exchange)
-    im_list = convert_forex(ccy_list, df["CP Initial Margin"].to_list(), exchange)
-    col_list = convert_forex(ccy_list, df["Total Collateral"].to_list(), exchange)
-
-    df_out_dict["Currency"] = ccy_list[0]
-    df_out_dict["Total"] = col_list[0]
-
-    df_out_dict["IM"] = im_list[0]
-    df_out_dict["Requirement"] = req_list[0]
     
-    vm = exp_list[0] - df_out_dict.get("IM", 0.0) # TODO : Hardcoded here, 
-    df_out_dict["VM"] =  vm
-    
-    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) - df_out_dict.get("Requirement", 0.0)
+    df_out_dict["Requirement"] = [(im or 0.0) + (vm or 0.0) for im, vm in zip(im_list, vm_list)]
+    df_out_dict["Net Exess/Deficit"] = [t + r for t, r in zip(col_list, df_out_dict["Requirement"])]
 
     out = pl.DataFrame(
 
@@ -366,31 +363,45 @@ def extract_collateral_fields_to_polars (
 
     if dataframe is None or dataframe.height == 0 :
         return None
-    
-    cols = dataframe.columns
+
+    # Drop rows where all cells are null or blank
+    df_clean = dataframe.filter(
+        ~pl.all_horizontal(
+            [
+                pl.col(c).is_null() | (pl.col(c).cast(pl.Utf8).str.strip_chars() == "")
+                for c in dataframe.columns
+            ]
+        )
+    )
+
+    cols = df_clean.columns
     
     key_col = cols[0]
     val_cols = cols[1:]
+    
 
-    df_parsed = dataframe.with_columns(
+    # Transpose the rest
+    col_names = dataframe.select(key_col).to_series().to_list()
+    new_df = dataframe.select(val_cols).transpose(column_names=col_names)
+
+    new_df = new_df.select(list(target_fields.keys()))
+
+    df_new_clean = new_df.filter(
+        ~pl.all_horizontal(
+            [
+                pl.col(c).is_null() | (pl.col(c).cast(pl.Utf8).str.strip_chars() == "")
+                for c in new_df.columns
+            ]
+        )
+    )
+
+    df_parsed = df_new_clean.with_columns(
         [
             pl.col(c).map_elements(parse_amount, return_dtype=pl.Float64).alias(c)
-            for c in dataframe.columns
+            for c in df_new_clean.columns
         ]
     )
-    print(df_parsed)
-
-    common_cols = [c for c in df_parsed.columns if c in target_fields]
-
-    df_keep = df_parsed.select(common_cols)
-
-    df_keep = df_keep.select(
-        [
-            pl.col(c).cast(target_fields[c], strict=False).alias(c)
-            for c in common_cols
-        ]
-    )
-
-    return df_keep
+    
+    return df_parsed
 
 

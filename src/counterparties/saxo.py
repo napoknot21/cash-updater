@@ -126,8 +126,6 @@ def process_cash_by_fund (
 
     )
 
-    print(dataframe)
-
     return out
 
 
@@ -185,7 +183,7 @@ def process_collat_by_fund (
     df_out_dict["VM"] = dataframe["ValueDateCashBalance"] - df_out_dict.get("Total", 0.0)
     
     df_out_dict["Requirement"] = df_out_dict["IM"] + df_out_dict["VM"]#(dataframe["AccountFunding"])
-    print(dataframe["AccountFunding"])
+
     df_out_dict["Net Exess/Deficit"] = df_out_dict["Total"] + df_out_dict["Requirement"]
 
     out = pl.DataFrame(
@@ -221,7 +219,7 @@ def get_file_by_fund_n_date (
     dir_abs_path = SAXO_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
 
     full_fundation = get_full_name_fundation(fundation)
-    print(full_fundation)
+
     for entry in os.listdir(dir_abs_path) :
 
         if date in entry and rules in entry :

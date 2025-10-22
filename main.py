@@ -92,10 +92,10 @@ def main (
             
             download_attachments_for_message(id, token, f"./attachments/{k}", origin)
     """
-    fundation = "WR"
-    out = ms_collateral(start_date, fundation, close_values)
+    fundation = "HV"
+    out = saxo_collateral(start_date, fundation, close_values)
     
-    #out.write_excel("testt.xlsx")
+    out.write_excel("testt.xlsx")
 
     print(out)
 
