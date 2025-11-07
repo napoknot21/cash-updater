@@ -6,16 +6,16 @@ import traceback
 import yfinance as yf
 import datetime as dt
 import polars as pl
-import pandas as pd # type: ignore
+import pandas as pd
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
 
-from src.config import SHARED_MAILS, PAIRS
+from src.config import SHARED_MAILS, PAIRS, EMAIL_COLUMNS, RAW_DIR_ABS_PATH, ATTACH_DIR_ABS_PATH, ALL_FUNDATIONS, ALL_KINDS
 from src.extraction import split_by_counterparty
 from src.msla import *
 from src.api import call_api_for_pairs
-from src.utils import date_to_str
+from src.utils import *
 
 from src.counterparties.edb import edb_cash, edb_collateral
 from src.counterparties.saxo import saxo_cash, saxo_collateral
@@ -23,13 +23,175 @@ from src.counterparties.gs import gs_cash, gs_collateral
 from src.counterparties.ms import ms_cash, ms_collateral
 from src.counterparties.ubs import ubs_cash, ubs_collateral
 
+
+BANK_FN : Dict[Tuple[str, str], Any] = {
+
+    # cash
+    ("ms", "cash") : ms_cash,
+    ("gs", "cash") : gs_cash,
+    ("edb", "cash") : edb_cash,
+    ("saxo", "cash") : saxo_cash,
+    #("ubs", "cash") : ubs_cash,
+    
+    # collateral
+    ("ms", "collateral") : ms_collateral,
+    ("gs", "collateral") : gs_collateral,
+    ("edb", "collateral") : edb_collateral,
+    ("saxo", "collateral") : saxo_collateral,
+    #("ubs", "collateral") : ubs_collateral,  # keep only if implemented
+
+}
+
+
+def ensure_inputs_for_date (
+        
+        date : Optional[str | dt.datetime | dt.date] = None,
+        token : Optional[str] = None,
+        
+        shared_emails : Optional[List[str]] = None,
+        schema_df : Optional[Dict[str, Any]] = None,
+
+        raw_dir_abs : Optional[str] = None,
+        attch_dir_abs : Optional[str] = None,
+    
+    ) -> None :
+    """
+    Only used when cache misses occur and we need to guarantee the local inputs.
+    Idempotent. Downloads attachments and updates ./attachments/{BANK}/...
+    We also dump mailbox rows into ./raw/{bank}_{date}.xlsx (optional).
+    """
+    token = get_token() if token is None else token
+    shared_emails = SHARED_MAILS if shared_emails is None else shared_emails
+    schema_df = EMAIL_COLUMNS if schema_df is None else schema_df
+
+    raw_dir_abs = RAW_DIR_ABS_PATH if raw_dir_abs is None else raw_dir_abs
+    attch_dir_abs = ATTACH_DIR_ABS_PATH if attch_dir_abs is None else attch_dir_abs
+
+    try :
+
+        inbox_df = pl.DataFrame(schema=schema_df)
+
+        for email in shared_emails :
+
+            try :
+
+                df_email = get_inbox_messages_by_date(date=date, token=token, email=email, with_attach=True)
+                
+                if isinstance(df_email, pl.DataFrame) and not df_email.is_empty() :
+                    inbox_df = pl.concat([inbox_df, df_email], how="vertical_relaxed")
+
+            except Exception as e:
+                print(f"\n[-] Inbox read error {email} {date}: {e}")
+
+        if inbox_df.is_empty() :
+
+            print(f"\n[-] No inbox data on {date}.")
+            return
+
+        rules_map = split_by_counterparty(inbox_df)
+
+        # Here
+        # k => counterparty name
+        # v -> dataframe of k (filtered info)
+        for counterparty, df_cp in rules_map.items() :
+
+            if counterparty == "UNMATCHED" or df_cp.is_empty() :
+                continue
+
+            raw_out = os.path.join(raw_dir_abs, f"{counterparty.lower()}_{date}.xlsx")
+            
+            try :
+                df_cp.write_excel(raw_out)
+
+            except Exception as e :
+                print(f"[-] Failed writing {raw_out}: {e}")
+
+            for row in df_cp.to_dicts() :
+
+                msg_id = row.get("Id")
+                origin = row.get("Shared Email")
+
+                if not msg_id :
+                    continue
+
+                try :
+
+                    dest = os.path.join(attch_dir_abs, counterparty)
+                    os.makedirs(dest, exist_ok=True)
+
+                    download_attachments_for_message(msg_id, token, dest, origin)
+                
+                except Exception as e :
+                    print(f"[-] Attachment download failed for {counterparty} {date}: {e}")
+
+    except Exception as e :
+
+        print(f"[-] ensure_inputs_for_date failed {date}: {e}")
+        traceback.print_exc()
+
+    return None
+
+
+def look_inputs_from_history (
+        
+        start_date : Optional[str | dt.datetime | dt.date] = None,
+        end_date : Optional[str | dt.datetime | dt.date] = None,
+
+        fundations : Optional[List[str]] = None,
+        kinds : Optional[List[str]] = None,
+
+    ) :
+    """
+    
+    """
+    fundations = ALL_FUNDATIONS if fundations is None else fundations
+    kinds = ALL_KINDS if kinds is None else kinds
+
+    # History first check
+    full_hit = True
+    sliced_results : Dict[Tuple[str, str], pl.DataFrame] = {} # (fund, kind) -> slice
+
+    for fund in fundations :
+
+        for kind in kinds :
+
+            h = load_history(fund, kind)
+            slice_df = slice_history(h, start_date, end_date)
+
+            if slice_df.is_empty() :
+                full_hit = False
+
+            sliced_results[(fund, kind)] = slice_df
+
+    if full_hit is True :
+
+        # Optional: merge per-bank across dates, then write a convenience output
+        for fund in fundations :
+
+            for kind in kinds:
+            
+                df = sliced_results[(fund, kind)]
+                
+                if not df.is_empty() :
+
+                    out_path = os.path.join(OUT_DIR, f"{fund}_{kind}_{start_date}_to_{end_date}.xlsx")
+                    df.write_excel(out_path)
+
+        print("\n[+] Served entirely from history.")
+        return
+
+
+
 def main (
     
         start_date : Optional[str | dt.datetime] = None,
         end_date : Optional[str | dt.datetime] = None,
+
         token : Optional[str] = None,
         fundation : Optional[str] = "HV",
+
         shared_emails: Optional[List[str]] = None,
+        
         pairs : Optional[List[str]] = None,
         schema_df : Optional[Dict] = None
     
@@ -37,62 +199,32 @@ def main (
     """
     Main entry point
     """
-    """
+    
     token = get_token() if token is None else token
     shared_emails = SHARED_MAILS if shared_emails is None else shared_emails
     schema_df = EMAIL_COLUMNS if schema_df is None else schema_df
-    """
     pairs = PAIRS if pairs is None else pairs
 
     start_date = date_to_str(start_date)
     end_date = date_to_str(end_date)
+
+    dates : List[str] = generate_dates(start_date=start_date, end_date=end_date)
+
+    if dates is None or len(dates) == 0 :
+
+        print(f"\n[-] Error during data range generation.")
+        return None
     
+    # Always check for the today's convertion rate
     close_values = call_api_for_pairs(None, pairs)
-    print(f"\n{close_values}")
+    print(f"\n[*] {close_values}")
+    
+    fundations = ALL_FUNDATIONS if fundation is None else [fundation]
 
-    """
-    df = pl.DataFrame(schema=schema_df)
-
-    for email in shared_emails :
-
-        print(f"\n[*] Processing shared email: {email}")
-
-        try :
-
-            df_email = get_inbox_messages_between(start_date=start_date, end_date=end_date, token=token, email=email, with_attach=True)
-            
-            if df_email.is_empty() :
-
-                print("\n[-] No messages found.\n")
-                continue
-
-        except Exception as e :
-            print(f"\n[-] Error printing inbox of {email}: {e}")
-
-        df = pl.concat([df, df_email], how="vertical")
-
-    # CASH email information for different banks
-    rules_df = split_by_counterparty(df)
-
-    # Here
-    # k => counterparty name
-    # v -> dataframe of k (filtered info)
-
-    for k, v in rules_df.items() :
-        
-        if k == "UNMATCHED" :
-            continue
-        
-        v.write_excel("./raw/" + k.lower() + ".xlsx")
-        
-        for row in v.to_dicts() :
-
-            id = row["Id"]
-            origin = row["Shared Email"]
-            
-            download_attachments_for_message(id, token, f"./attachments/{k}", origin)
-    """
-    fundation = "HV"
+    # First we cehck the history
+    look_inputs_from_history(start_date, end_date, fundations, )
+    
+    # --- Otherwise, figure out which (date×fund×bank×kind) are missing from history
 
     out_map = run_all_in_parallel(start_date=start_date, fundation=fundation, close_values=close_values, max_workers=6, timeout_per_task=None)
 
@@ -111,16 +243,23 @@ def main (
 
         collat_all = pl.concat(collat_dfs, how="vertical_relaxed")
         collat_all.write_excel("./history/collateral_all.xlsx")
-
+    #"""
     # If you want to keep per-bank outputs:
-    """
+    #"""
     for name, df in out_map.items() :
         df.write_excel(f"./raw/{name}.xlsx")
     out = ms_cash(start_date, fundation, close_values)
     out.write_excel("testt.xlsx")
 
     print(out)
-    """
+    #"""
+
+    fundation = "HV"
+
+    out = edb_cash(start_date, fundation, close_values)
+
+    print(out)
+
 
 
 def _task_wrapper (name : str, fn, *args, **kwargs) -> Tuple[str, Optional[pl.DataFrame], Optional[Exception]]:

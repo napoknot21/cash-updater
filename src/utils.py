@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import os
 import datetime as dt
 import polars as pl
 
-from src.config import FUNDATIONS, FREQUENCY_DATE_MAP
+from src.config import (FUNDATIONS, FREQUENCY_DATE_MAP, HISTORY_DIR_ABS_PATH,
+    CACHE_DIR_ABS_PATH, ATTACH_DIR_ABS_PATH, RAW_DIR_ABS_PATH, KINDS_COLUMNS_DICT,
+    CACHE_FILENAME_ABS, CACHE_COLUMNS
+)
+
 from typing import Optional, List, Dict
 
 
@@ -43,6 +48,13 @@ def date_to_str (date : Optional[str | dt.datetime] = None, format : str = "%Y-%
         raise TypeError("date must be a string, datetime, or None")
 
     return date_obj.strftime(format)
+
+
+def str_to_date (date : Optional[str | dt.datetime | dt.date] = None, format : str = "%Y-%m-%") -> str :
+    """
+    
+    """
+    return None
 
 
 def get_full_name_fundation (fund : str, fundations : Optional[Dict] = None) -> Optional[str] :
@@ -97,7 +109,6 @@ def convert_forex (
 
 def generate_dates (
         
-        self,
         start_date : Optional[str | dt.datetime] = None,
         end_date : Optional[str | dt.datetime] = None,
         frequency : str = "Day",
@@ -153,11 +164,238 @@ def generate_dates (
         return []
 
     # Convert the date range to a list of strings in the format 'YYYY-MM-DD'
-    range_date_list = (series_dates_wd
-        .to_frame("dates")
-        .with_columns(pl.col("dates").dt.strftime(format).alias("formatted_dates"))["formatted_dates"]
-        .to_list()
+    range_date_list = (
+        
+        series_dates_wd
+            .to_frame("dates")
+            .with_columns(pl.col("dates").dt.strftime(format).alias("formatted_dates"))["formatted_dates"]
+            .to_list()
+    
     )
 
     return range_date_list
 
+
+def ensure_dirs () -> None :
+
+    for p in [
+        HISTORY_DIR_ABS_PATH, CACHE_DIR_ABS_PATH,
+        ATTACH_DIR_ABS_PATH, RAW_DIR_ABS_PATH
+    ] :
+        os.makedirs(p, exist_ok=True)
+
+
+def history_path (
+    
+        fundation : str = "HV",
+        kind : str = "cash",
+        history_dir_abs : Optional[str] = None
+    
+    ) -> str:
+    # global per-fund file (your spec)
+    # history/HV/cash.xlsx
+    history_dir_abs = HISTORY_DIR_ABS_PATH if history_dir_abs is None else history_dir_abs
+    
+    fund_dir = os.join(history_dir_abs, fundation.upper())
+    os.makedirs(fund_dir)
+
+    return os.path.join(fund_dir, f"{kind}.xlsx")
+
+
+def load_history (
+        
+        fundation : str = "HV",
+        kind : str = "cash",
+
+        kinds_dict : Optional[Dict] = None,
+        history_dir_abs : Optional[str] = None
+    
+    ) -> Optional[pl.DataFrame] :
+    """
+    
+    """
+    history_dir_abs = HISTORY_DIR_ABS_PATH if history_dir_abs is None else history_dir_abs
+    kinds_dict = KINDS_COLUMNS_DICT if kinds_dict is None else kinds_dict
+
+    path = history_path(fundation, kind, history_dir_abs)
+    columns = kinds_dict.get(kind)
+
+    if not os.path.exists(path) :
+
+        # minimal schema we expect: Date, Bank, ... (allow relaxed later)
+        return pl.DataFrame(schema_overrides=columns)
+    
+    df = pl.read_excel(path, schema_overrides=columns)
+
+    return df
+
+
+def save_history (
+        
+        df : Optional[pl.DataFrame] = None, 
+        fundation : str = "HV",
+        kind : str = "cash"
+    
+    ) -> bool :
+    """
+    
+    """
+    # sort & drop dupes on (Date,Bank) if present
+    if df is None :
+        return False
+
+    hst_df = load_history(fundation, kind)
+    merged_df = hst_df.join(df)
+    
+    try :
+
+        merged_df.write_excel(history_path(fundation, kind))
+        return True
+    
+    except :
+        return False
+
+
+def slice_history (
+        
+        df : Optional[pl.DataFrame] = None,
+        start : Optional[str] = None,
+        end : Optional[str] = None
+        
+    ) -> pl.DataFrame :
+    """
+    
+    """
+    # handle Date as string ISO (YYYY-MM-DD) consistently
+    if "Date" not in df.columns or df.is_empty() :
+        return pl.DataFrame()
+    
+    start = str_to_date(start)
+    end = str_to_date(end)
+
+    df_filtered = df.filter((pl.col("Date") >= start) & (pl.col("Date") <= end))
+    
+    return df_filtered
+
+
+def load_cache (
+
+        cache_filename : Optional[str] = None,
+        schema_overrides : Optional[Dict] = None,
+
+    ) -> Optional[pl.DataFrame] :
+    """
+    
+    """
+    cache_filename = CACHE_FILENAME_ABS if cache_filename is None else cache_filename
+    schema_overrides = CACHE_COLUMNS if schema_overrides is None else schema_overrides
+
+    if not os.path.exists(cache_filename) :
+        return pl.DataFrame(schema_overrides=schema_overrides)
+    
+    try :
+        dataframe = pl.read_csv(cache_filename, schema_overrides=schema_overrides)
+    
+    except Exception :
+        return None
+    
+    return dataframe
+
+
+def save_cache (
+        
+        cache_df : Optional[pl.DataFrame] = None,
+        cache_filename : Optional[str] = None,
+
+    ) -> bool :
+    """
+    
+    """
+    if cache_df is None :
+        return False
+    
+    cache_filename = CACHE_FILENAME_ABS if cache_filename is None else cache_filename
+    full_df = load_cache(cache_filename)
+
+    merged_df = full_df.join(cache_df)
+
+    try :
+        
+        cache_df.write_csv(cache_filename)
+        return True
+    
+    except :
+        return False
+
+
+def cache_lookup (
+        
+        cache_df : Optional[pl.DataFrame] = None,
+        
+        bank : Optional[str] = None,
+        kind : str = "cash",
+        fund : str = "HV",
+        date : Optional[str | dt.datetime | dt.date] = None
+    
+    ) -> Optional[str] :
+    """
+    
+    """
+    if cache_df is None or cache_df.is_empty() :
+        return None
+    
+    m = cache_df.filter(
+    
+        (pl.col("Bank") == bank) &
+        (pl.col("Kind") == kind) &
+        (pl.col("Fundation") == fund) &
+        (pl.col("Date") == date)
+    
+    )
+
+    if m.is_empty() :
+        return None
+    
+    path = m.select("Filename").item()
+    attch_path = os.join(ATTACH_DIR_ABS_PATH, m.select("Bank"))
+
+    full_path = os.join(attch_path, path)
+
+    return full_path if os.path.exists(full_path) else None
+
+
+def cache_upsert (
+        
+        cache_df: Optional[pl.DataFrame] = None,
+        bank : Optional[str] = None,
+        kind : str = "cash",
+        fund : str = "HV",
+        date : Optional[str | dt.datetime | dt.date] = None,
+        filepath : Optional[str] = None,
+        
+    ) -> pl.DataFrame :
+
+    row = pl.DataFrame(
+
+        {
+            "Bank" : [bank],
+            "Kind" : [kind],
+            "Fundation" : [fund],
+            "Date" : [date],
+            "Filename" : [filepath],
+        }
+
+    )
+
+    base = cache_df.filter(
+
+        ~(
+            (pl.col("Bank") == bank) &
+            (pl.col("Kind") == kind) &
+            (pl.col("Fundation") == fund) &
+            (pl.col("date") == date)
+        )
+
+    )
+    
+    return pl.concat([base, row], how="vertical_relaxed")

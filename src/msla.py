@@ -9,7 +9,7 @@ import json
 import datetime as dt
 import polars as pl
 
-from typing import Dict, List, Optional, Any, Iterable, Union
+from typing import Dict, List, Optional, Any, Tuple, Union
 
 from src.config import (
     APPLICATION_ID, SECRET_VALUE_ID, AUTHORITY, SCOPES, GRAPH_BASE,
@@ -77,14 +77,14 @@ def decode_token (token : str) -> List[Dict[str, Any]] :
     return decoded
 
 
-def get_inbox_messages_between (
+def get_inbox_messages_by_date (
 
-        start_date : Optional[str | dt.datetime | dt.date] = None,
-        end_date : Optional[str | dt.datetime | dt.date] = None,
+        date : Optional[str | dt.datetime | dt.date] = None,
         token : Optional[str] = None,
         email : Optional[str] = None,
         graph_base : Optional[str] = None,
-        with_attach : bool = False
+        with_attach : bool = False,
+        format : str = ""
 
     ) :
     """
@@ -94,17 +94,17 @@ def get_inbox_messages_between (
     graph_base = GRAPH_BASE if graph_base is None else graph_base
     email = SHARED_MAILS[0] if email is None else email
 
-    start_date = date_to_str(start_date)
-    end_date = date_to_str(end_date)
+    date = date_to_str(date)
+    start, end = get_day_bounds(date)
 
-    filter_str = f"receivedDateTime ge {start_date}"
+    filter_str = f"receivedDateTime ge {start} and receivedDateTime lt {end}"
 
     parameters = {
         
         "$orderby": "receivedDateTime ASC",
         "$select": "id,subject,from,receivedDateTime,hasAttachments",
         "$filter": filter_str,
-        "$top": "100"
+        "$top": "10000"
 
     }
 
@@ -123,6 +123,7 @@ def get_inbox_messages_between (
     url = f"{graph_base}/users/{email}/mailFolders/Inbox/messages"
 
     rows: List[dict] = []
+    
     while True :
 
         response = requests.get(
@@ -143,11 +144,11 @@ def get_inbox_messages_between (
             rows.append(
             
                 {
-                    "Id": m.get("id"),
-                    "Subject": m.get("subject"),
-                    "From": m.get("from", {}).get("emailAddress", {}).get("address"),
-                    "Received DateTime": m.get("receivedDateTime"),
-                    "Attachments": m.get("hasAttachments"),
+                    "Id" : m.get("id"),
+                    "Subject" : m.get("subject"),
+                    "From" : m.get("from", {}).get("emailAddress", {}).get("address"),
+                    "Received DateTime" : m.get("receivedDateTime"),
+                    "Attachments" : m.get("hasAttachments"),
                     "Shared Email" : str(email)
                 }
             
@@ -315,3 +316,62 @@ def download_attachments_for_message (
 
     return saved
     
+
+def build_chunks(
+        
+        start_date: Union[str, dt.date, dt.datetime],
+        end_date: Union[str, dt.date, dt.datetime],
+        days: int = 7
+
+    ) -> List[Tuple[str, str]] :
+    """
+    Return list of [start_iso, end_iso] for each chunk. End exclusive.
+    """
+    s = date_to_str(start_date)
+    e = date_to_str(end_date)
+    
+    if s > e:
+        s, e = e, s
+    
+    out: List[Tuple[str, str]] = []
+    step = dt.timedelta(days=days)
+
+    cur = s
+
+    while cur <= e :
+
+        nxt = min(cur + step - dt.timedelta(milliseconds=1), e)
+        
+        out.append((
+            cur.strftime("%Y-%m-%dT00:00:00Z"),
+            nxt.strftime("%Y-%m-%dT23:59:59.999Z"),
+        ))
+        
+        cur = (nxt + dt.timedelta(milliseconds=1))
+    
+    return out
+
+
+def get_day_bounds(date : Optional[str | dt.date | dt.datetime] = None) -> tuple[str, str] :
+    """
+    Given a single date (string, date, or datetime),
+    returns ISO8601 UTC bounds for that full day:
+    (start, end) formatted for Graph API filters.
+    """
+    if date is None :
+        date = dt.datetime.utcnow().date()
+    
+    elif isinstance(date, str) :
+        # Accept "YYYY-MM-DD" or "YYYY/MM/DD"
+        date = dt.datetime.strptime(date.replace("/", "-"), "%Y-%m-%d").date()
+    
+    elif isinstance(date, dt.datetime) :
+        date = date.date()
+
+    start_dt = dt.datetime.combine(date, dt.time.min)
+    end_dt = start_dt + dt.timedelta(days=1)
+
+    start_iso = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_iso = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return start_iso, end_iso

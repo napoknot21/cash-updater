@@ -47,6 +47,20 @@ FUNDATIONS = {
 }
 
 
+ALL_FUNDATIONS = [
+
+    "HV",
+    "WR"
+
+]
+
+ALL_KINDS = [
+
+    "cash",
+    "collateral"
+
+]
+
 # Email informtion schema
 EMAIL_COLUMNS = {
 
@@ -88,9 +102,40 @@ COLLATERAL_COLUMNS = {
     "IM" : pl.Float64,
     "VM" : pl.Float64,
     "Requirement" : pl.Float64,
-    "Net Exess/Deficit" : pl.Float64
+    "Net Excess/Deficit" : pl.Float64
 
 }
+
+
+KINDS_COLUMNS_DICT = {
+
+    "cash" : CASH_COLUMNS,
+    "collateral" : COLLATERAL_COLUMNS
+
+}
+
+
+CACHE_COLUMNS = {
+
+    "Date" : pl.Date,
+    "Bank" : pl.Utf8,
+    "Fundation" : pl.Utf8,
+    "Kind" : pl.Utf8,
+    "Filename" : pl.Utf8
+
+}
+
+
+# PATHS
+
+CACHE_DIR_ABS_PATH = os.getenv("CACHE_DIR_ABS_PATH")
+CACHE_FILE_NAME = os.getenv("CACHE_FILE_NAME")
+
+CACHE_FILENAME_ABS = os.path.join(CACHE_DIR_ABS_PATH, CACHE_FILE_NAME)
+
+HISTORY_DIR_ABS_PATH= os.getenv("HISTORY_DIR_ABS_PATH")
+ATTACH_DIR_ABS_PATH = os.getenv("ATTACH_DIR_ABS_PATH")
+RAW_DIR_ABS_PATH = os.getenv("RAW_DIR_ABS_PATH")
 
 
 FREQUENCY_DATE_MAP = {
@@ -239,7 +284,7 @@ EDB_CASH_TYPE_ALLOWED = os.getenv("EDB_TYPE_ALLOWED_1")
 EDB_CASH_DESC_ALLOWED = [
 
     os.getenv("EDB_DESCRIPTION_ALLOWED_1"),
-    os.getenv("EDN_DESCRIPTION_ALLOWED_2")
+    os.getenv("EDB_DESCRIPTION_ALLOWED_2")
 
 ]
 
@@ -286,7 +331,25 @@ UBS = {
 
 }
 
-UBS_ATTACHMENT_DIR_ABS_PATh = os.getenv("UBS_ATTACHMENT_DIR_ABS_PATH")
+UBS_REQUIRED_COLUMNS = {
+
+    "Cusip/ISIN" : pl.Utf8,
+    "Quantity" : pl.Float64,
+    "CCY (Issue)" : pl.Utf8
+
+}
+
+USB_TARGET_FIELDS = {
+
+    "Net Excess/Deficit" : pl.Float64,
+
+    
+}
+
+UBS_ATTACHMENT_DIR_ABS_PATH = os.getenv("UBS_ATTACHMENT_DIR_ABS_PATH")
+
+UBS_FILENAMES_CASH = os.getenv("UBS_FILENAMES_CASH")
+UBS_FILENAMES_COLLATERAL = os.getenv("UBS_FILENAMES_COLLATERAL")
 
 # Counterparties
 COUNTERPARTIES = {

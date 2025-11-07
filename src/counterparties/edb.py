@@ -94,6 +94,7 @@ def process_cash_by_fund (
 
     type_allowed = EDB_CASH_TYPE_ALLOWED if type_allowed is None else type_allowed
     desc_allowed = EDB_CASH_DESC_ALLOWED if desc_allowed is None else desc_allowed
+    print(desc_allowed)
 
     exchange = call_api_for_pairs(date) if exchange is None else exchange
     structure = CASH_COLUMNS if structure is None else structure
@@ -191,7 +192,6 @@ def process_collat_by_fund (
 
     }
 
-    # TODO
     for description in desc_allowed :
 
         df_temp = df_desc.filter(pl.col("DESCRIPTION") == description)
