@@ -23,6 +23,9 @@ from src.counterparties.gs import gs_cash, gs_collateral
 from src.counterparties.ms import ms_cash, ms_collateral
 from src.counterparties.ubs import ubs_cash, ubs_collateral
 
+ALL_BANKS = ["ms", "gs", "edb", "saxo", "ubs"]
+OUT_DIR     = "./out"
+
 
 BANK_FN : Dict[Tuple[str, str], Any] = {
 
@@ -188,7 +191,8 @@ def main (
         end_date : Optional[str | dt.datetime] = None,
 
         token : Optional[str] = None,
-        fundation : Optional[str] = "HV",
+        fundation : Optional[str] = None,
+        kinds : Optional[str | List[str]] = None,
 
         shared_emails: Optional[List[str]] = None,
         
@@ -225,40 +229,86 @@ def main (
     look_inputs_from_history(start_date, end_date, fundations, )
     
     # --- Otherwise, figure out which (date×fund×bank×kind) are missing from history
+    missing_tasks: List[Tuple[str, str, str, str]] = []  # (date, fund, bank, kind)
 
-    out_map = run_all_in_parallel(start_date=start_date, fundation=fundation, close_values=close_values, max_workers=6, timeout_per_task=None)
+    for fund in fundations:
+        for kind in ALL_KINDS :
+            # dates missing in history (based on 'Date' column existence)
+            h = load_history(fund, kind)
+            have_dates = set()
+            if not h.is_empty() and "Date" in h.columns :
+                have_dates = set(h.select("Date").to_series().to_list())
 
-    # Example: concatenate all CASH
-    cash_dfs = [df for name, df in out_map.items() if name.endswith("_cash")]
-    
-    if cash_dfs :
+            for d in dates:
 
-        cash_all = pl.concat(cash_dfs, how="vertical_relaxed")
-        cash_all.write_excel("./history/cash_all.xlsx")
+                if d not in have_dates:
 
-    # Example: concatenate all COLLATERAL
-    collat_dfs = [df for name, df in out_map.items() if name.endswith("_collateral")]
+                    for bank in ALL_BANKS:
+                        missing_tasks.append((d, fund, bank, kind))
 
-    if collat_dfs :
+    # --- Use cache second: for each missing date×fund×bank×kind, see if we already have the local input file
+    cache_df = load_cache()
 
-        collat_all = pl.concat(collat_dfs, how="vertical_relaxed")
-        collat_all.write_excel("./history/collateral_all.xlsx")
-    #"""
-    # If you want to keep per-bank outputs:
-    #"""
-    for name, df in out_map.items() :
-        df.write_excel(f"./raw/{name}.xlsx")
-    out = ms_cash(start_date, fundation, close_values)
-    out.write_excel("testt.xlsx")
+    # keep tasks that truly need inputs (cache miss) so we know which dates to call the API for
+    dates_needing_inputs: set[str] = set()
+    really_missing: List[Tuple[str, str, str, str]] = []
+    for (d, fund, bank, kind) in missing_tasks:
+        hit = cache_lookup(cache_df, bank, kind, fund, d)
+        if hit is None:
+            dates_needing_inputs.add(d)
+        really_missing.append((d, fund, bank, kind))
 
-    print(out)
-    #"""
+    # --- If needed, fetch inputs via API and update cache (per date)
+    if dates_needing_inputs:
+        for d in sorted(dates_needing_inputs):
+            ensure_inputs_for_date(d, token, shared_emails, schema_df)
+            # After download, you may update the cache by scanning ATTACH_DIR per bank and
+            # recording files that match date/bank/kind/fund. If you already know filenames
+            # at download time, you can push exact paths here. For now we skip adding rows
+            # automatically; bank extractors typically read from ATTACH_DIR.
 
-    fundation = "HV"
+    # --- Parallel extraction for all really_missing tasks
+    results_by_kind_fund: Dict[Tuple[str, str], List[pl.DataFrame]] = {}
+    if really_missing:
+        with ThreadPoolExecutor(max_workers=min(8, len(really_missing))) as ex:
+            futures = [
+                ex.submit(_task_wrapper, d, fund, bank, kind, close_values)
+                for (d, fund, bank, kind) in really_missing
+            ]
+            for fut in as_completed(futures):
+                d, fund, bank, kind, df, err, tb = fut.result()
+                if err is not None:
+                    print(f"[-] Extraction failed {(d, fund, bank, kind)}: {err}\n{tb}")
+                    continue
+                if df is None or df.is_empty():
+                    print(f"[·] Empty result {(d, fund, bank, kind)}")
+                    continue
+                results_by_kind_fund.setdefault((fund, kind), []).append(df)
 
-    out = edb_cash(start_date, fundation, close_values)
+    # --- Merge into history and persist
+    for fund in fundations:
+        for kind in ALL_KINDS:
+            fresh = pl.DataFrame()
+            if (fund, kind) in results_by_kind_fund:
+                fresh = pl.concat(results_by_kind_fund[(fund, kind)], how="vertical_relaxed")
+            hist = load_history(fund, kind)
+            merged = pl.concat([hist, fresh], how="vertical_relaxed") if not fresh.is_empty() else hist
+            if not merged.is_empty():
+                save_history(merged, fund, kind)
 
-    print(out)
+    # --- Finally, return the demanded results (slice again, now complete)
+    for fund in fundations :
+        for kind in ALL_KINDS:
+            final_hist = load_history(fund, kind)
+            slic = slice_history(final_hist, start_date, end_date)
+            if not slic.is_empty():
+                # “Merged results by bank” (grouping key can be (Bank) + agg of numerics)
+                # We simply emit the sliced table; users can group in UI. If you want true
+                # bank-level aggregates here, you can add .group_by("Bank").agg(...)
+                out_path = os.path.join(OUT_DIR, f"{fund}_{kind}_{start_date}_to_{end_date}.xlsx")
+                slic.write_excel(out_path)
+
+    print("[✓] Done.")
 
 
 

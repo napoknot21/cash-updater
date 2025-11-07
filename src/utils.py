@@ -196,8 +196,8 @@ def history_path (
     # history/HV/cash.xlsx
     history_dir_abs = HISTORY_DIR_ABS_PATH if history_dir_abs is None else history_dir_abs
     
-    fund_dir = os.join(history_dir_abs, fundation.upper())
-    os.makedirs(fund_dir)
+    fund_dir = os.path.join(history_dir_abs, fundation.upper())
+    os.makedirs(fund_dir, exist_ok=True)
 
     return os.path.join(fund_dir, f"{kind}.xlsx")
 
