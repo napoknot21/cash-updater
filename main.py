@@ -9,9 +9,13 @@ import polars as pl
 import pandas as pd
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
-from src.config import SHARED_MAILS, PAIRS, EMAIL_COLUMNS, RAW_DIR_ABS_PATH, ATTACH_DIR_ABS_PATH, ALL_FUNDATIONS, ALL_KINDS
+from src.config import (
+    SHARED_MAILS, PAIRS, EMAIL_COLUMNS, RAW_DIR_ABS_PATH,
+    ATTACH_DIR_ABS_PATH, ALL_FUNDATIONS, ALL_KINDS, CASH_COLUMNS, COLLATERAL_COLUMNS,
+    HISTORY_DIR_ABS_PATH
+)
 from src.extraction import split_by_counterparty
 from src.msla import *
 from src.api import call_api_for_pairs
@@ -21,10 +25,7 @@ from src.counterparties.edb import edb_cash, edb_collateral
 from src.counterparties.saxo import saxo_cash, saxo_collateral
 from src.counterparties.gs import gs_cash, gs_collateral
 from src.counterparties.ms import ms_cash, ms_collateral
-from src.counterparties.ubs import ubs_cash, ubs_collateral
-
-ALL_BANKS = ["ms", "gs", "edb", "saxo", "ubs"]
-OUT_DIR     = "./out"
+#from src.counterparties.ubs import ubs_cash, ubs_collateral
 
 
 BANK_FN : Dict[Tuple[str, str], Any] = {
@@ -150,252 +151,264 @@ def look_inputs_from_history (
     fundations = ALL_FUNDATIONS if fundations is None else fundations
     kinds = ALL_KINDS if kinds is None else kinds
 
-    # History first check
-    full_hit = True
-    sliced_results : Dict[Tuple[str, str], pl.DataFrame] = {} # (fund, kind) -> slice
+    fund_df : Dict[str, Dict[str, pl.DataFrame]] = {
+
+        f : {k: pl.DataFrame() for k in kinds} for f in fundations
+
+    }
+
+    # Let's check if all information it's from history or not
+    all_from_history = True
 
     for fund in fundations :
 
         for kind in kinds :
 
             h = load_history(fund, kind)
+            if h is None :
+                print("No history")
+                break
+
             slice_df = slice_history(h, start_date, end_date)
 
             if slice_df.is_empty() :
-                full_hit = False
-
-            sliced_results[(fund, kind)] = slice_df
-
-    if full_hit is True :
-
-        # Optional: merge per-bank across dates, then write a convenience output
-        for fund in fundations :
-
-            for kind in kinds:
+                all_from_history = False
             
-                df = sliced_results[(fund, kind)]
-                
-                if not df.is_empty() :
-
-                    out_path = os.path.join(OUT_DIR, f"{fund}_{kind}_{start_date}_to_{end_date}.xlsx")
-                    df.write_excel(out_path)
-
-        print("\n[+] Served entirely from history.")
-        return
-
-
-
-def main (
+            #sliced_results[(fund, kind)] = slice_df
+            fund_df[fund][kind] = pl.concat([fund_df[fund][kind], slice_df], how="vertical")
+            print(fund_df[fund][kind])
     
-        start_date : Optional[str | dt.datetime] = None,
-        end_date : Optional[str | dt.datetime] = None,
-
-        token : Optional[str] = None,
-        fundation : Optional[str] = None,
-        kinds : Optional[str | List[str]] = None,
-
-        shared_emails: Optional[List[str]] = None,
-        
-        pairs : Optional[List[str]] = None,
-        schema_df : Optional[Dict] = None
+    if all_from_history :
+        return fund_df # Already ready to use / export
     
-    ) -> None :
+    return None
+
+def main(start_date: Optional[str | dt.datetime] = None,
+         end_date: Optional[str | dt.datetime] = None,
+         token: Optional[str] = None,
+         fundation: Optional[str] = None,
+         kinds: Optional[str | List[str]] = None,
+         shared_emails: Optional[List[str]] = None,
+         pairs: Optional[List[str]] = None,
+         schema_df: Optional[Dict] = None) -> None:
     """
     Main entry point
     """
-    
-    token = get_token() if token is None else token
-    shared_emails = SHARED_MAILS if shared_emails is None else shared_emails
-    schema_df = EMAIL_COLUMNS if schema_df is None else schema_df
-    pairs = PAIRS if pairs is None else pairs
-
     start_date = date_to_str(start_date)
     end_date = date_to_str(end_date)
 
-    dates : List[str] = generate_dates(start_date=start_date, end_date=end_date)
-
-    if dates is None or len(dates) == 0 :
-
-        print(f"\n[-] Error during data range generation.")
-        return None
-    
-    # Always check for the today's convertion rate
-    close_values = call_api_for_pairs(None, pairs)
-    print(f"\n[*] {close_values}")
-    
+    pairs = PAIRS if pairs is None else pairs
     fundations = ALL_FUNDATIONS if fundation is None else [fundation]
 
-    # First we cehck the history
-    look_inputs_from_history(start_date, end_date, fundations, )
+    dates: List[str] = generate_dates(start_date=start_date, end_date=end_date)
+
+    if not dates:
+        print(f"\n[-] Error during date range generation.")
+        return None
+
+    # FX/close values once (you can also refresh per day if needed)
+    close_values = call_api_for_pairs(None, pairs)
+    print(f"\n[*] FX close values: {close_values}")
+
+    # Optionally prefetch inputs (mail/attachments)
+    # token = get_token() if token is None else token
+    # shared_emails = SHARED_MAILS if shared_emails is None else shared_emails
+    # schema_df = EMAIL_COLUMNS if schema_df is None else schema_df
+    #for d in dates:
+    #    ensure_inputs_for_date(d, token, shared_emails, schema_df)
+
+    # Kinds filter: None -> both cash & collateral; else normalize to a set
+
+    #""" 
+    if kinds is None:
+        kinds_filter = None
+    elif isinstance(kinds, str):
+        kinds_filter = {kinds.lower()}
+    else:
+        kinds_filter = {k.lower() for k in kinds}
+
+    for d in dates:
+        for f in fundations:
+            print(f"\n[+] Processing date = {d} fund = {f} ...")
+            process_one_day_fund(d, f, close_values, kinds_filter=kinds_filter, max_workers=8)
+    #"""
+    #df = edb_cash("2025-11-11", "HV", close_values)
+    #print(df)
     
-    # --- Otherwise, figure out which (date×fund×bank×kind) are missing from history
-    missing_tasks: List[Tuple[str, str, str, str]] = []  # (date, fund, bank, kind)
-
-    for fund in fundations:
-        for kind in ALL_KINDS :
-            # dates missing in history (based on 'Date' column existence)
-            h = load_history(fund, kind)
-            have_dates = set()
-            if not h.is_empty() and "Date" in h.columns :
-                have_dates = set(h.select("Date").to_series().to_list())
-
-            for d in dates:
-
-                if d not in have_dates:
-
-                    for bank in ALL_BANKS:
-                        missing_tasks.append((d, fund, bank, kind))
-
-    # --- Use cache second: for each missing date×fund×bank×kind, see if we already have the local input file
-    cache_df = load_cache()
-
-    # keep tasks that truly need inputs (cache miss) so we know which dates to call the API for
-    dates_needing_inputs: set[str] = set()
-    really_missing: List[Tuple[str, str, str, str]] = []
-    for (d, fund, bank, kind) in missing_tasks:
-        hit = cache_lookup(cache_df, bank, kind, fund, d)
-        if hit is None:
-            dates_needing_inputs.add(d)
-        really_missing.append((d, fund, bank, kind))
-
-    # --- If needed, fetch inputs via API and update cache (per date)
-    if dates_needing_inputs:
-        for d in sorted(dates_needing_inputs):
-            ensure_inputs_for_date(d, token, shared_emails, schema_df)
-            # After download, you may update the cache by scanning ATTACH_DIR per bank and
-            # recording files that match date/bank/kind/fund. If you already know filenames
-            # at download time, you can push exact paths here. For now we skip adding rows
-            # automatically; bank extractors typically read from ATTACH_DIR.
-
-    # --- Parallel extraction for all really_missing tasks
-    results_by_kind_fund: Dict[Tuple[str, str], List[pl.DataFrame]] = {}
-    if really_missing:
-        with ThreadPoolExecutor(max_workers=min(8, len(really_missing))) as ex:
-            futures = [
-                ex.submit(_task_wrapper, d, fund, bank, kind, close_values)
-                for (d, fund, bank, kind) in really_missing
-            ]
-            for fut in as_completed(futures):
-                d, fund, bank, kind, df, err, tb = fut.result()
-                if err is not None:
-                    print(f"[-] Extraction failed {(d, fund, bank, kind)}: {err}\n{tb}")
-                    continue
-                if df is None or df.is_empty():
-                    print(f"[·] Empty result {(d, fund, bank, kind)}")
-                    continue
-                results_by_kind_fund.setdefault((fund, kind), []).append(df)
-
-    # --- Merge into history and persist
-    for fund in fundations:
-        for kind in ALL_KINDS:
-            fresh = pl.DataFrame()
-            if (fund, kind) in results_by_kind_fund:
-                fresh = pl.concat(results_by_kind_fund[(fund, kind)], how="vertical_relaxed")
-            hist = load_history(fund, kind)
-            merged = pl.concat([hist, fresh], how="vertical_relaxed") if not fresh.is_empty() else hist
-            if not merged.is_empty():
-                save_history(merged, fund, kind)
-
-    # --- Finally, return the demanded results (slice again, now complete)
-    for fund in fundations :
-        for kind in ALL_KINDS:
-            final_hist = load_history(fund, kind)
-            slic = slice_history(final_hist, start_date, end_date)
-            if not slic.is_empty():
-                # “Merged results by bank” (grouping key can be (Bank) + agg of numerics)
-                # We simply emit the sliced table; users can group in UI. If you want true
-                # bank-level aggregates here, you can add .group_by("Bank").agg(...)
-                out_path = os.path.join(OUT_DIR, f"{fund}_{kind}_{start_date}_to_{end_date}.xlsx")
-                slic.write_excel(out_path)
-
-    print("[✓] Done.")
+    print("\n[-] Done.")
 
 
-
-def _task_wrapper (name : str, fn, *args, **kwargs) -> Tuple[str, Optional[pl.DataFrame], Optional[Exception]]:
+def compute_and_update_history () :
     """
-    Runs a single task and always returns (name, df_or_none, exc_or_none).
-    Never raises to the executor.
+    
     """
-    try :
-        
+
+
+
+def _safe_exec(task_name: str, fn: Any, *args, **kwargs) -> tuple[str, Optional[pl.DataFrame], Optional[BaseException], Optional[str]]:
+    try:
         df = fn(*args, **kwargs)
-        return name, df, None, None
-    
-    except Exception as e :
-        tb = traceback.format_exc()
-        return name, None, e, tb
+        return task_name, df, None, None
+    except Exception as e:
+        return task_name, None, e, traceback.format_exc()
 
 
-def run_all_in_parallel (
-        
-        start_date : str | dt.datetime,
-        fundation : str,
-        close_values : Dict[str, float],
-        *,
-        max_workers : int = 8,
-        timeout_per_task: Optional[float] = None,
-    
-    ) -> Dict[str, pl.DataFrame] :
+
+def build_tasks_for(date: str, fundation: str, close_values: Dict[str, float],
+                    kinds_filter: Optional[set[str]] = None) -> List[Tuple[str, Any, tuple, dict]]:
     """
-    Submit all cash/collateral functions concurrently.
-    Returns a dict {task_name: DataFrame}.
-    Failed tasks are skipped (but logged to stdout).
+    Create tasks from BANK_FN for a given (date, fundation).
+    kinds_filter: e.g. {'cash','collateral'}; None = all.
     """
-    tasks : List[Tuple[str, Any, tuple, dict]] = [
+    kinds_filter = kinds_filter or {"cash", "collateral"}
+    tasks: List[Tuple[str, Any, tuple, dict]] = []
 
-        # CASH
-        ("ms_cash", ms_cash, (start_date, fundation, close_values), {}),
-        ("gs_cash", gs_cash, (start_date, fundation, close_values), {}),
-        ("edb_cash", edb_cash, (start_date, fundation, close_values), {}),
-        ("saxo_cash", saxo_cash, (start_date, fundation, close_values), {}),
-        
-        # COLLATERAL
-        ("ms_collateral", ms_collateral, (start_date, fundation, close_values), {}),
-        ("gs_collateral", gs_collateral, (start_date, fundation, close_values), {}),
-        ("edb_collateral", edb_collateral, (start_date, fundation, close_values), {}),
-        ("saxo_collateral", saxo_collateral, (start_date, fundation, close_values), {}),
-    
-    ]
+    for (bank, kind), fn in BANK_FN.items():
+        if kind not in kinds_filter:
+            continue
+        task_name = f"{bank}_{kind}"
+        # Assuming uniform signature (date, fundation, close_values)
+        tasks.append((task_name, fn, (date, fundation, close_values), {}))
 
+    return tasks
+
+
+def run_all_in_parallel(date: str,
+                        fundation: str,
+                        close_values: Dict[str, float],
+                        *,
+                        kinds_filter: Optional[set[str]] = None,
+                        max_workers: int = 8,
+                        timeout_per_task: Optional[float] = None) -> Dict[str, pl.DataFrame]:
+    """
+    Submit all cash/collateral functions concurrently for one (date, fundation).
+    Returns {task_name: DataFrame}
+    """
+    tasks = build_tasks_for(date, fundation, close_values, kinds_filter)
     results: Dict[str, pl.DataFrame] = {}
 
-    with ThreadPoolExecutor(max_workers=max_workers) as ex :
+    if not tasks:
+        return results
 
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
         future_map = {
-
-            ex.submit(_task_wrapper, name, fn, *args, **kwargs): name
+            ex.submit(_safe_exec, name, fn, *args, **kwargs): name
             for (name, fn, args, kwargs) in tasks
-        
         }
 
-        for fut in as_completed(future_map, timeout=timeout_per_task) :
-
+        for fut in as_completed(future_map, timeout=timeout_per_task):
             name = future_map[fut]
-            
-            try :
+            try:
                 task_name, df, err, tb = fut.result()
-            
-            except Exception as e :
-
+            except Exception as e:
                 print(f"[!] {name} crashed at future level: {e}")
                 traceback.print_exc()
                 continue
 
-            if err is not None :
-
+            if err is not None:
                 print(f"[-] {task_name} failed: {err}")
-                print(tb)
+                if tb:
+                    print(tb)
                 continue
 
-            if df is None or (isinstance(df, pl.DataFrame) and df.is_empty()) :
-
+            if df is None or (isinstance(df, pl.DataFrame) and df.is_empty()):
                 print(f"[·] {task_name}: empty or None")
                 continue
 
             results[task_name] = df
 
     return results
+
+
+
+
+def _filename_for_kind(kind: str) -> str:
+    return f"{kind}.xlsx"  # => cash.xlsx / collateral.xlsx
+
+
+def _schema_for_kind(kind: str) -> Dict[str, Any]:
+    """
+    Return the appropriate schema dict for Polars read/write,
+    based on whether we're dealing with cash or collateral.
+    """
+    if kind == "cash":
+        return CASH_COLUMNS
+    elif kind == "collateral":
+        return COLLATERAL_COLUMNS
+    else:
+        raise ValueError(f"Unknown kind: {kind}")
+
+
+def _read_history(fund: str, kind: str) -> pl.DataFrame:
+    os.makedirs(os.path.join(HISTORY_DIR_ABS_PATH, fund.upper()), exist_ok=True)
+    path = os.path.join(HISTORY_DIR_ABS_PATH, fund.upper(), _filename_for_kind(kind))
+    schema = _schema_for_kind(kind)
+    if os.path.exists(path):
+        try:
+            return pl.read_excel(path, schema_overrides=schema)
+        except Exception as e:
+            print(f"[-] Failed to read history {path}: {e}")
+            return pl.DataFrame(schema=schema)
+    return pl.DataFrame(schema=schema)
+
+
+def _write_history(fund: str, kind: str, df: pl.DataFrame) -> None:
+    path = os.path.join(HISTORY_DIR_ABS_PATH, fund.upper(), _filename_for_kind(kind))
+    if not os.path.exists(path) :
+        """
+        
+        """
+        parent = os.path.dirname(path)
+        os.makedirs(parent, exist_ok=True)
+    try:
+        # exact-duplicate drop; keep order if available
+        df = df.unique(maintain_order=True)
+        df.write_excel(path)
+    except Exception as e:
+        print(f"[-] Failed writing {path}: {e}")
+
+def process_one_day_fund(date: str,
+                         fundation: str,
+                         close_values: Dict[str, float],
+                         kinds_filter: Optional[set[str]] = None,
+                         *,
+                         max_workers: int = 8) -> None:
+    """
+    Runs all bank functions for one (date, fundation), groups by kind, and updates history files.
+    """
+    results = run_all_in_parallel(
+        date=date,
+        fundation=fundation,
+        close_values=close_values,
+        kinds_filter=kinds_filter,
+        max_workers=max_workers,
+    )
+
+    # Group dataframes by kind
+    grouped: Dict[str, List[pl.DataFrame]] = {"cash": [], "collateral": []}
+    for task_name, df in results.items():
+        # task_name is like "gs_cash" -> extract kind suffix
+        kind = "cash" if task_name.endswith("_cash") else "collateral" if task_name.endswith("_collateral") else None
+        if kind is None:
+            print(f"[!] Could not infer kind from task name '{task_name}', skipping.")
+            continue
+        grouped[kind].append(df)
+
+    for kind, dfs in grouped.items():
+        if not dfs:
+            continue
+        new_block = pl.concat(dfs, how="vertical_relaxed")
+
+        # Read existing history and append
+        history = _read_history(fundation, kind)
+        if history.is_empty():
+            merged = new_block
+        else:
+            # Relaxed concat to accommodate minor schema diffs
+            merged = pl.concat([history, new_block], how="vertical_relaxed")
+
+        _write_history(fundation, kind, merged)
+
 
 
 if __name__ == '__main__' :
@@ -429,5 +442,6 @@ if __name__ == '__main__' :
         shared_emails=args.shared_emails,
         start_date=args.start_date,
         end_date=args.end_date,
+        fundation=args.fund
     
     )

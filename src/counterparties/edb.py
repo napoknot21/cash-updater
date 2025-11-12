@@ -12,17 +12,21 @@ from src.config import (
     EDB_COLLAT_TYPE_ALLOWED, EDB_COLLAT_DESC_ALLOWED, EDB_COLLAT_DESC_DICT,
     CASH_COLUMNS, COLLATERAL_COLUMNS
 )
-from src.utils import get_full_name_fundation, date_to_str, convert_forex
+from src.utils import get_full_name_fundation, date_to_str, convert_forex, cache_update, cache_load_row, str_to_date
 from src.api import call_api_for_pairs
 
 
 def edb_cash (
         
         date : Optional[str | dt.date | dt.datetime] = None,
+
         fundation : Optional[str] = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
+        
+        structure : Optional[Dict] = None,
         schema_overrides : Optional[Dict] = None
 
     ) -> Optional[str] :
@@ -31,13 +35,20 @@ def edb_cash (
     """
     dir_abs_path = EBD_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = EDB_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
+    structure = CASH_COLUMNS if structure is None else structure
 
-    filename = get_file_by_fund_n_date(date, fundation)
+    filename = get_file_by_fund_n_date(date, fundation, kind="cash", dir_abs_path=dir_abs_path) if filename is None else filename
+
+    if filename is None :
+
+        print("\n[-] File not found...Donwload needed files")
+        return pl.DataFrame(schema=structure)
+
     full_path = os.path.join(dir_abs_path, filename)
 
     df = get_df_from_file(full_path, date, fundation, schema_overrides)
 
-    out = process_cash_by_fund(df, date, fundation, exchange=exchange)
+    out = process_cash_by_fund(df, date, fundation, exchange=exchange, structure=structure)
 
     return out
 
@@ -48,7 +59,11 @@ def edb_collateral (
         fundation : Optional[str] = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
+
         dir_abs_path : Optional[str] = None,
+        
+        structure : Optional[Dict] = None,
         schema_overrides : Optional[Dict] = None
 
     ) :
@@ -57,13 +72,18 @@ def edb_collateral (
     """
     dir_abs_path = EBD_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = EDB_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
+    structure = COLLATERAL_COLUMNS if structure is None else structure
 
-    filename = get_file_by_fund_n_date(date, fundation)
+    filename = get_file_by_fund_n_date(date, fundation, kind="collateral", dir_abs_path=dir_abs_path) if filename is None else filename
+
+    if filename is None :
+        return pl.DataFrame(schema=structure)
+
     full_path = os.path.join(dir_abs_path, filename)
 
     df = get_df_from_file(full_path, date, fundation, schema_overrides)
 
-    out = process_collat_by_fund(df, date, fundation, exchange=exchange)
+    out = process_collat_by_fund(df, date, fundation, exchange=exchange, structure=structure)
 
     return out
 
@@ -94,7 +114,6 @@ def process_cash_by_fund (
 
     type_allowed = EDB_CASH_TYPE_ALLOWED if type_allowed is None else type_allowed
     desc_allowed = EDB_CASH_DESC_ALLOWED if desc_allowed is None else desc_allowed
-    print(desc_allowed)
 
     exchange = call_api_for_pairs(date) if exchange is None else exchange
     structure = CASH_COLUMNS if structure is None else structure
@@ -188,7 +207,7 @@ def process_collat_by_fund (
         "IM" : 0.0,
         "VM" : 0.0,
         "Requirement" : 0.0,
-        "Net Exess/Deficit" : 0.0
+        "Net Excess/Deficit" : 0.0
 
     }
 
@@ -217,7 +236,7 @@ def process_collat_by_fund (
     df_out_dict["IM"] = (-1) * df_out_dict["IM"]
     df_out_dict["Requirement"] = (-1) * df_out_dict["Requirement"]
 
-    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) + df_out_dict.get("Requirement", 0.0)
+    df_out_dict["Net Excess/Deficit"] = df_out_dict.get("Total", 0.0) + df_out_dict.get("Requirement", 0.0)
 
     out = pl.DataFrame(
 
@@ -240,14 +259,27 @@ def get_file_by_fund_n_date (
         d_format : str = "%Y%m%d",
         f_format : str = "_",
 
+        kind : Optional[str] = "cash",
         rules : Optional[Dict] = None,
+
         dir_abs_path : Optional[str] = None,
     
     ) -> Optional[str] :
     """
     This function looks for the path file by date and fundation (in the file name)
     """
-    date = date_to_str(date, d_format)
+    date_obj = str_to_date(date)
+    date_format = date_to_str(date, d_format)
+
+    df = cache_load_row(None, "EDB", kind, fundation, date_obj)
+
+    if df.height > 0 :
+
+        print("\n[+] Data information found in cache...Loading")
+
+        col_data = df.select("Filename").item()
+        return col_data
+
     dir_abs_path = EBD_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
 
     full_fundation = get_full_name_fundation(fundation)
@@ -260,9 +292,11 @@ def get_file_by_fund_n_date (
     
     for entry in os.listdir(dir_abs_path) :
 
-        if date in entry and formatted_fund in entry :
+        if (date_format) in entry and formatted_fund in entry :
 
             print(f"\n[+] File found for {date} and for {full_fundation} : {entry}")
+            #cache_update(None, date_obj, "EDB", fundation, kind, str(entry))
+
             return entry
         
     return None

@@ -7,7 +7,7 @@ import datetime as dt
 from typing import Optional, Dict, List
 
 from src.config import *
-from src.utils import get_full_name_fundation, date_to_str, convert_forex
+from src.utils import get_full_name_fundation, date_to_str, convert_forex, cache_update, str_to_date, cache_load_row, load_cache
 from src.api import call_api_for_pairs
 
 
@@ -17,8 +17,10 @@ def saxo_cash (
         fundation : str = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
         schema_overrides : Optional[Dict] = None,
+
         cash_columns : Optional[Dict] = None
 
     ) -> Optional[pl.DataFrame] :
@@ -33,7 +35,9 @@ def saxo_cash (
     dir_abs_path = SAXO_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = SAXO_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
 
-    filename = get_file_by_fund_n_date(date, fundation)
+    filename = get_file_by_fund_n_date(date, fundation) if filename is None else filename
+    if filename is None :
+        return pl.DataFrame()
     full_path = os.path.join(dir_abs_path, filename)
 
     df = get_df_from_file(full_path, date, fundation, schema_overrides)
@@ -49,8 +53,10 @@ def saxo_collateral (
         fundation : str = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
         schema_overrides : Optional[Dict] = None,
+
         cash_columns : Optional[Dict] = None
 
     ) -> Optional[pl.DataFrame] :
@@ -65,7 +71,7 @@ def saxo_collateral (
     dir_abs_path = SAXO_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = SAXO_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
 
-    filename = get_file_by_fund_n_date(date, fundation)
+    filename = get_file_by_fund_n_date(date, fundation) if filename is None else filename
     full_path = os.path.join(dir_abs_path, filename)
 
     df = get_df_from_file(full_path, date, fundation, schema_overrides)
@@ -173,7 +179,7 @@ def process_collat_by_fund (
         "IM" : 0.0,
         "VM" : 0.0,
         "Requirement" : 0.0,
-        "Net Exess/Deficit" : 0.0
+        "Net Excess/Deficit" : 0.0
 
     }
 
@@ -184,7 +190,7 @@ def process_collat_by_fund (
     
     df_out_dict["Requirement"] = df_out_dict["IM"] + df_out_dict["VM"]#(dataframe["AccountFunding"])
 
-    df_out_dict["Net Exess/Deficit"] = df_out_dict["Total"] + df_out_dict["Requirement"]
+    df_out_dict["Net Excess/Deficit"] = df_out_dict["Total"] + df_out_dict["Requirement"]
 
     out = pl.DataFrame(
 
@@ -205,6 +211,7 @@ def get_file_by_fund_n_date (
         fundation : Optional[str] = "HV",
 
         d_format : str = "%d-%m-%Y",
+        kind : Optional[str] = "cash",
 
         rules : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
@@ -213,7 +220,16 @@ def get_file_by_fund_n_date (
     """
     This function looks for the path file by date and fundation (in the file name)
     """
-    date = date_to_str(date, d_format)
+    date_obj = str_to_date(date)
+    date_format = date_to_str(date, d_format)
+
+    df_cache = load_cache()
+    df = cache_load_row(df_cache, "SAXO", kind, fundation, date_obj)
+
+    if df.height > 0 :
+
+        col_data = df.select("Filename").item()
+        return col_data
 
     rules = SAXO_FILENAMES if rules is None else rules
     dir_abs_path = SAXO_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
@@ -222,9 +238,11 @@ def get_file_by_fund_n_date (
 
     for entry in os.listdir(dir_abs_path) :
 
-        if date in entry and rules in entry :
+        if date_format in entry and rules in entry :
 
             print(f"\n[+] File found for {date} and for {full_fundation}")
+            #cache_update(df_cache, date_obj, "SAXO", fundation, kind, entry)
+            
             return entry
         
     return None

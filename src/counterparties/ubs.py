@@ -18,6 +18,7 @@ def ubs_cash (
         fundation : Optional[str] = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
         schema_overrides : Optional[Dict] = None,
 
@@ -38,7 +39,11 @@ def ubs_cash (
 
     rules = UBS_FILENAMES_CASH if rules is None else rules
 
-    filename = get_file_by_fund_n_date(date, fundation, rules=rules)
+    filename = get_file_by_fund_n_date(date, fundation, rules=rules) if filename is None else filename
+
+    if filename is None :
+        return pl.DataFrame()
+    
     full_path = os.path.join(dir_abs_path, filename)
 
     #df = get_df_from_file_cash(full_path, date, fundation, schema_overrides)
@@ -55,6 +60,7 @@ def ubs_collateral (
         
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
         schema_overrides : Optional[Dict] = None,
 
@@ -75,7 +81,7 @@ def ubs_collateral (
 
     rules = UBS_FILENAMES_COLLATERAL if rules is None else rules
 
-    filename = get_file_by_fund_n_date(date, fundation, rules=rules)
+    filename = get_file_by_fund_n_date(date, fundation, rules=rules) if filename is None else filename
     full_path = os.path.join(dir_abs_path, filename)
 
     return None

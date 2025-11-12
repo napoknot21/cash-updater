@@ -11,7 +11,7 @@ from typing import Optional, Dict, Tuple
 from src.config import *
 from src.parser import *
 from src.api import call_api_for_pairs
-from src.utils import get_full_name_fundation, date_to_str, convert_forex
+from src.utils import get_full_name_fundation, date_to_str, convert_forex, cache_update, cache_load_row, str_to_date, load_cache
 
 
 def gs_cash (
@@ -20,7 +20,10 @@ def gs_cash (
         fundation : str = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
+
+        structure : Optional[Dict] = None,
         schema_overrides : Optional[Dict] = None,
         
         rules : Optional[Dict] = None
@@ -31,15 +34,20 @@ def gs_cash (
     """
     dir_abs_path = GS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = GS_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
+    structure = CASH_COLUMNS if structure is None else structure
 
     rules = GS_FILENAMES_CASH if rules is None else rules
 
-    filename = get_file_by_fund_n_date(date, fundation, rules=rules)
+    filename = get_file_by_fund_n_date(date, fundation, kind="cash", rules=rules) #if filename is None else filename
+    
+    if filename is None :
+        return pl.DataFrame(schema=structure)
+
     full_path = os.path.join(dir_abs_path, filename)
 
     df = get_df_from_file_cash(full_path, date, fundation, schema_overrides)
 
-    out = process_cash_by_fund(df, date, fundation, exchange=exchange)
+    out = process_cash_by_fund(df, date, fundation, exchange=exchange, structure=structure)
 
     return out
 
@@ -50,8 +58,11 @@ def gs_collateral (
         fundation : str = "HV",
         exchange : Optional[Dict[str, float]] = None,
 
+        filename : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
+
         schema_overrides : Optional[Dict] = None,
+        structure : Optional[Dict] = None,
 
         rules : Optional[str] = None,
         extensions : Tuple[str, str] = ("pdf",)
@@ -62,15 +73,20 @@ def gs_collateral (
     """
     dir_abs_path = GS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     schema_overrides = GS_REQUIRED_COLUMNS if schema_overrides is None else schema_overrides
+    structure = COLLATERAL_COLUMNS if structure is None else structure
 
     rules = GS_FILENAMES_COLLATERAL if rules is None else rules
 
-    filename = get_file_by_fund_n_date(date, fundation, rules=rules, extensions=extensions)
+    filename = get_file_by_fund_n_date(date, fundation, rules=rules, kind="collateral", extensions=extensions)# if filename is None else filename
+    
+    if filename is None :
+        return pl.DataFrame(schema=structure)
+    
     full_path = os.path.join(dir_abs_path, filename)
 
     df = extract_collateral_fields_to_polars(full_path)
     
-    out = process_collat_by_fund(df, date, fundation, exchange=exchange)
+    out = process_collat_by_fund(df, date, fundation, structure=structure, exchange=exchange)
 
     return out
 
@@ -174,7 +190,7 @@ def process_collat_by_fund (
         "IM" : 0.0,
         "VM" : 0.0,
         "Requirement" : 0.0,
-        "Net Exess/Deficit" : 0.0
+        "Net Excess/Deficit" : 0.0
 
     }
 
@@ -196,7 +212,7 @@ def process_collat_by_fund (
 
     df_out_dict["Requirement"] = df_out_dict.get("IM", 0.0) + df_out_dict.get("VM", 0.0)
     
-    df_out_dict["Net Exess/Deficit"] = df_out_dict.get("Total", 0.0) + df_out_dict.get("Requirement", 0.0)
+    df_out_dict["Net Excess/Deficit"] = df_out_dict.get("Total", 0.0) + df_out_dict.get("Requirement", 0.0)
 
     out = pl.DataFrame(
 
@@ -217,6 +233,7 @@ def get_file_by_fund_n_date (
         fundation : Optional[str] = "HV",
 
         d_format : str = "%d_%b_%Y",
+        kind : Optional[str] = "cash",
 
         rules : Optional[str] = None,
         dir_abs_path : Optional[str] = None,
@@ -227,8 +244,17 @@ def get_file_by_fund_n_date (
     """
     This function looks for the path file by date and fundation (in the file name)
     """
-    date = date_to_str(date, d_format)
+    date_obj = str_to_date(date)
+    date_format = date_to_str(date, d_format)
 
+    df_cache = load_cache()
+    df = cache_load_row(df_cache, "GS", kind, fundation, date_obj)
+
+    if  df.height > 0 :
+
+        col_data = df.select("Filename").item()
+        return col_data
+        
     dir_abs_path = GS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     rules = GS_FILENAMES_CASH if rules is None else rules
 
@@ -237,11 +263,13 @@ def get_file_by_fund_n_date (
 
     for entry in os.listdir(dir_abs_path) :
 
-        if date in entry and entry.startswith(rules) and fund_words[0] in entry :
+        if date_format in entry and entry.startswith(rules) and fund_words[0] in entry :
 
             if entry.lower().endswith(extensions) : 
 
                 print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}")
+                #cache_update(df_cache, date_obj, "GS", fundation, kind, entry)
+
                 return entry
         
     return None

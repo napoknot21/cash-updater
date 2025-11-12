@@ -6,7 +6,7 @@ import polars as pl
 
 from src.config import (FUNDATIONS, FREQUENCY_DATE_MAP, HISTORY_DIR_ABS_PATH,
     CACHE_DIR_ABS_PATH, ATTACH_DIR_ABS_PATH, RAW_DIR_ABS_PATH, KINDS_COLUMNS_DICT,
-    CACHE_FILENAME_ABS, CACHE_COLUMNS
+    CACHE_FILENAME_ABS, CACHE_COLUMNS, CASH_COLUMNS
 )
 
 from typing import Optional, List, Dict
@@ -50,11 +50,24 @@ def date_to_str (date : Optional[str | dt.datetime] = None, format : str = "%Y-%
     return date_obj.strftime(format)
 
 
-def str_to_date (date : Optional[str | dt.datetime | dt.date] = None, format : str = "%Y-%m-%") -> str :
+def str_to_date (date : Optional[str | dt.date | dt.datetime] = None, format : str = "%Y-%m-%d") -> dt.date :
     """
     
     """
-    return None
+    if date is None :
+        date_obj = dt.date.today()
+    
+    if isinstance (date, dt.datetime):
+        date_obj = date.date()
+
+    if isinstance(date, dt.date) :
+        date_obj = date
+    
+    if isinstance(date, str) :
+        date_obj = dt.datetime.strptime(date, format).date()
+    
+    return date_obj
+
 
 
 def get_full_name_fundation (fund : str, fundations : Optional[Dict] = None) -> Optional[str] :
@@ -223,7 +236,7 @@ def load_history (
     if not os.path.exists(path) :
 
         # minimal schema we expect: Date, Bank, ... (allow relaxed later)
-        return pl.DataFrame(schema_overrides=columns)
+        return pl.DataFrame(schema=columns)
     
     df = pl.read_excel(path, schema_overrides=columns)
 
@@ -256,6 +269,56 @@ def save_history (
         return False
 
 
+def update_cash_history (
+        
+        df_hist : Optional[pl.DataFrame] = None,
+        df_new : Optional[pl.DataFrame] = None,
+        fundation : str = "HV",
+        kind : str = "cash",
+        schema_overrides : Optional[Dict] = None
+
+    ) :
+    """
+    
+    """
+    df_hist = load_history(fundation, kind) if df_hist is None else df_hist
+    schema_overrides = CASH_COLUMNS if schema_overrides is None else schema_overrides
+
+    if df_new is not None :
+
+        df_unique = check_and_filter_history_rows(df_new, df_hist, schema_overrides)
+
+        df_hist = df_hist.vstack(df_unique)
+
+    return df_hist
+
+# TODO
+def check_and_filter_history_rows (
+        
+        df_new : Optional[pl.DataFrame] = None,
+        df_hist : Optional[pl.DataFrame] = None,
+
+        schema_overrides : Optional[Dict] = None,
+
+    ) :
+    """
+    
+    """
+    schema_overrides = CASH_COLUMNS if schema_overrides is None else schema_overrides
+
+    hist_rows_set = set(tuple(row) for row in df_hist.to_numpy())
+    new_rows = [tuple(row) for row in df_new.to_numpy()]
+    
+    unique_rows = [row for row in new_rows if row not in hist_rows_set]
+    
+    # Si des lignes uniques existent, les convertir en DataFrame et retourner
+    if unique_rows:
+        return pl.DataFrame(unique_rows, schema=df_new.columns)
+    else:
+        return pl.DataFrame(columns=df_new.columns)
+
+
+
 def slice_history (
         
         df : Optional[pl.DataFrame] = None,
@@ -273,9 +336,17 @@ def slice_history (
     start = str_to_date(start)
     end = str_to_date(end)
 
-    df_filtered = df.filter((pl.col("Date") >= start) & (pl.col("Date") <= end))
+    if start == end :
+
+        df_filtered = df.filter(pl.col("Date") == start)
+
+    else :
+
+        df_filtered = df.filter((pl.col("Date") >= start) & (pl.col("Date") <= end))
     
     return df_filtered
+
+
 
 
 def load_cache (
@@ -290,21 +361,32 @@ def load_cache (
     cache_filename = CACHE_FILENAME_ABS if cache_filename is None else cache_filename
     schema_overrides = CACHE_COLUMNS if schema_overrides is None else schema_overrides
 
+    cache_dir = os.path.dirname(cache_filename)
+
     if not os.path.exists(cache_filename) :
-        return pl.DataFrame(schema_overrides=schema_overrides)
-    
+        
+        os.makedirs(cache_dir, exist_ok=True)
+
+        dataframe = pl.DataFrame(schema=schema_overrides)
+        dataframe.write_csv(cache_filename)
+
+        return dataframe
+
     try :
-        dataframe = pl.read_csv(cache_filename, schema_overrides=schema_overrides)
-    
-    except Exception :
+        data = pl.read_csv(cache_filename, schema=schema_overrides)
+        print(data)
+        return data
+    except Exception as e :
+        print(f"{e}")
         return None
-    
-    return dataframe
+
 
 
 def save_cache (
         
+        full_cache : Optional[pl.DataFrame] = None,
         cache_df : Optional[pl.DataFrame] = None,
+
         cache_filename : Optional[str] = None,
 
     ) -> bool :
@@ -314,18 +396,19 @@ def save_cache (
     if cache_df is None :
         return False
     
+    full_cache = load_cache() if full_cache is None else full_cache
+    #print(full_cache)
     cache_filename = CACHE_FILENAME_ABS if cache_filename is None else cache_filename
-    full_df = load_cache(cache_filename)
-
-    merged_df = full_df.join(cache_df)
+ 
+    merged_df = pl.concat([full_cache, cache_df], how="vertical")
 
     try :
-        
-        cache_df.write_csv(cache_filename)
-        return True
+        merged_df.write_csv(cache_filename)
     
     except :
         return False
+    
+    return True
 
 
 def cache_lookup (
@@ -364,38 +447,100 @@ def cache_lookup (
     return full_path if os.path.exists(full_path) else None
 
 
-def cache_upsert (
-        
+def cache_load_row (
+
         cache_df: Optional[pl.DataFrame] = None,
+
         bank : Optional[str] = None,
         kind : str = "cash",
         fund : str = "HV",
         date : Optional[str | dt.datetime | dt.date] = None,
-        filepath : Optional[str] = None,
+        
+    ) -> Optional[pl.DataFrame] :
+    """
+    
+    """
+    cache_df = load_cache() if cache_df is None else cache_df
+    print(cache_df)
+    if cache_df is None or cache_df.is_empty() :
+        print("were are hereeeee")
+        return pl.DataFrame()
+
+    existing_row = cache_df.filter(
+
+        (cache_df["Bank"] == bank) & 
+        (cache_df["Kind"] == kind) &
+        (cache_df["Fundation"] == fund) &
+        (cache_df["Date"] == date)
+    
+    )
+
+    return existing_row
+
+
+def cache_row_exists (
+        
+        cache_df: Optional[pl.DataFrame] = None,
+
+        bank : Optional[str] = None,
+        kind : str = "cash",
+        fund : str = "HV",
+        date : Optional[str | dt.datetime | dt.date] = None,
         
     ) -> pl.DataFrame :
+    """
+    
+    """
+    cache_df = load_cache() if cache_df is None else cache_df
+    existing_row = cache_load_row(cache_df, bank, kind, fund, date)
+
+    if existing_row is None :
+        return False
+
+    return existing_row.height > 0
+
+
+def cache_update (
+        
+        cache_df: Optional[pl.DataFrame] = None,
+
+        date : Optional[str | dt.datetime | dt.date] = None,
+        bank : Optional[str] = None,
+        fund : str = "HV",
+        kind : str = "cash",
+        filepath : Optional[str] = None,
+
+    ) :
+    """
+    
+    """
+
+    cache_df = load_cache() if cache_df is None else cache_df
+    date = str_to_date(date)
 
     row = pl.DataFrame(
 
         {
-            "Bank" : [bank],
-            "Kind" : [kind],
-            "Fundation" : [fund],
             "Date" : [date],
+            "Bank" : [bank],
+            "Fundation" : [fund],
+            "Kind" : [kind],
             "Filename" : [filepath],
         }
 
     )
+    print(row)
 
-    base = cache_df.filter(
-
-        ~(
-            (pl.col("Bank") == bank) &
-            (pl.col("Kind") == kind) &
-            (pl.col("Fundation") == fund) &
-            (pl.col("date") == date)
-        )
-
-    )
+    # Verify if the this results already exists
+    if cache_row_exists(cache_df, bank, kind, fund, date) :
+        
+        print("The row Already exists, no update")
+        return False
     
-    return pl.concat([base, row], how="vertical_relaxed")
+    # Save the new row to the cache
+    
+    save_cache(cache_df, row)
+
+    return True
+
+
