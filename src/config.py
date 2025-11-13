@@ -341,8 +341,15 @@ UBS_REQUIRED_COLUMNS = {
 
 USB_TARGET_FIELDS = {
 
-    "Net Excess/Deficit" : pl.Float64,
+    "Currency" : pl.Utf8,
+    "Mtm Value" : pl.Float64, # VM
 
+    "Client Initial Margin" : pl.Float64, # IM
+    "Total Requirement" : pl.Float64, # Requirement
+    "Collateral Held by UBS" : pl.Float64, # Total
+    "Collateral Pledged by UBS" : pl.Utf8,
+    
+    "Net Excess/Deficit" : pl.Float64,
     
 }
 

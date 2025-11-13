@@ -25,7 +25,7 @@ from src.counterparties.edb import edb_cash, edb_collateral
 from src.counterparties.saxo import saxo_cash, saxo_collateral
 from src.counterparties.gs import gs_cash, gs_collateral
 from src.counterparties.ms import ms_cash, ms_collateral
-#from src.counterparties.ubs import ubs_cash, ubs_collateral
+from src.counterparties.ubs import ubs_cash, ubs_collateral
 
 
 BANK_FN : Dict[Tuple[str, str], Any] = {
@@ -35,7 +35,7 @@ BANK_FN : Dict[Tuple[str, str], Any] = {
     ("gs", "cash") : gs_cash,
     ("edb", "cash") : edb_cash,
     ("saxo", "cash") : saxo_cash,
-    #("ubs", "cash") : ubs_cash,
+    ("ubs", "cash") : ubs_cash,
     
     # collateral
     ("ms", "collateral") : ms_collateral,
@@ -219,7 +219,7 @@ def main(start_date: Optional[str | dt.datetime] = None,
 
     # Kinds filter: None -> both cash & collateral; else normalize to a set
 
-    #""" 
+    """ 
     if kinds is None:
         kinds_filter = None
     elif isinstance(kinds, str):
@@ -231,9 +231,12 @@ def main(start_date: Optional[str | dt.datetime] = None,
         for f in fundations:
             print(f"\n[+] Processing date = {d} fund = {f} ...")
             process_one_day_fund(d, f, close_values, kinds_filter=kinds_filter, max_workers=8)
-    #"""
-    #df = edb_cash("2025-11-11", "HV", close_values)
-    #print(df)
+    """
+
+
+    df = ubs_collateral("2025-11-06", "HV", close_values, None)
+
+    print(df)
     
     print("\n[-] Done.")
 
