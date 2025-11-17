@@ -267,7 +267,7 @@ def get_file_by_fund_n_date (
 
             if entry.lower().endswith(extensions) : 
 
-                print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}")
+                print(f"\n[+] [GS] File found for {date} and for {full_fundation.lower()} : {entry}")
                 #cache_update(df_cache, date_obj, "GS", fundation, kind, entry)
 
                 return entry

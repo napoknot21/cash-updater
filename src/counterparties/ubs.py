@@ -293,7 +293,7 @@ def get_file_by_fund_n_date_collat (
             
             if sheet_name.endswith(date) :
 
-                print(f"\n[+] File found for {date} and for {full_fundation} : {entry}")
+                print(f"\n[+] [UBS] File found for {date} and for {full_fundation} : {entry}")
                 return entry
 
     return None

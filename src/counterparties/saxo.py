@@ -240,7 +240,7 @@ def get_file_by_fund_n_date (
 
         if date_format in entry and rules in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation}")
+            print(f"\n[+] [SAXO] File found for {date} and for {full_fundation}")
             #cache_update(df_cache, date_obj, "SAXO", fundation, kind, entry)
             
             return entry

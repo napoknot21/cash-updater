@@ -272,7 +272,7 @@ def get_file_by_fund_n_date (
 
         if rules in entry and account in entry and date_format in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation.lower()} : {entry}")
+            print(f"\n[+] [MS] File found for {date} and for {full_fundation.lower()} : {entry}")
             #cache_update(df_cahe, date_obj, "MS", fundation, kind, entry)
             
             return entry

@@ -294,7 +294,7 @@ def get_file_by_fund_n_date (
 
         if (date_format) in entry and formatted_fund in entry :
 
-            print(f"\n[+] File found for {date} and for {full_fundation} : {entry}")
+            print(f"\n[+] [EDB] File found for {date} and for {full_fundation} : {entry}")
             #cache_update(None, date_obj, "EDB", fundation, kind, str(entry))
 
             return entry
