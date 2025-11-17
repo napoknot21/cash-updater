@@ -42,7 +42,7 @@ BANK_FN : Dict[Tuple[str, str], Any] = {
     ("gs", "collateral") : gs_collateral,
     ("edb", "collateral") : edb_collateral,
     ("saxo", "collateral") : saxo_collateral,
-    #("ubs", "collateral") : ubs_collateral,  # keep only if implemented
+    ("ubs", "collateral") : ubs_collateral,
 
 }
 
@@ -214,12 +214,12 @@ def main(start_date: Optional[str | dt.datetime] = None,
     # token = get_token() if token is None else token
     # shared_emails = SHARED_MAILS if shared_emails is None else shared_emails
     # schema_df = EMAIL_COLUMNS if schema_df is None else schema_df
-    #for d in dates:
-    #    ensure_inputs_for_date(d, token, shared_emails, schema_df)
+    for d in dates:
+        ensure_inputs_for_date(d, token, shared_emails, schema_df)
 
     # Kinds filter: None -> both cash & collateral; else normalize to a set
 
-    """ 
+    #""" 
     if kinds is None:
         kinds_filter = None
     elif isinstance(kinds, str):
@@ -231,20 +231,13 @@ def main(start_date: Optional[str | dt.datetime] = None,
         for f in fundations:
             print(f"\n[+] Processing date = {d} fund = {f} ...")
             process_one_day_fund(d, f, close_values, kinds_filter=kinds_filter, max_workers=8)
-    """
+    #"""
 
-
-    df = ubs_collateral("2025-11-06", "HV", close_values, None)
-
-    print(df)
-    
+    #df = ms_cash("2025-11-12", "HV", close_values)
+    #print(df)
+    #filepath = df.write_excel("goldman-collat.xlsx")
     print("\n[-] Done.")
 
-
-def compute_and_update_history () :
-    """
-    
-    """
 
 
 

@@ -139,7 +139,7 @@ def process_cash_by_fund (
         schema_overrides=structure
 
     )
-
+    
     return out
 
 

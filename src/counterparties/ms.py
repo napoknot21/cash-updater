@@ -406,13 +406,37 @@ def extract_collateral_fields_to_polars (
     
     key_col = cols[0]
     val_cols = cols[1:]
-    
+
+    raw_names = (
+        df_clean
+        .select(pl.col(key_col).cast(pl.Utf8).str.strip_chars().alias(key_col))
+        .to_series()
+        .to_list()
+    )
+
+    def make_unique(names: list[str], base_if_empty: str = "col") -> list[str]:
+        seen = {}
+        unique = []
+        for name in names:
+            # normalize / avoid None
+            name = (name or "").strip()
+            if not name:
+                name = base_if_empty
+            count = seen.get(name, 0)
+            if count > 0:
+                new_name = f"{name}_{count}"
+            else:
+                new_name = name
+            unique.append(new_name)
+            seen[name] = count + 1
+        return unique
 
     # Transpose the rest
-    col_names = dataframe.select(key_col).to_series().to_list()
-    new_df = dataframe.select(val_cols).transpose(column_names=col_names)
+    col_names = make_unique(raw_names) #df_clean.select(key_col).to_series().to_list()
+    new_df = df_clean.select(val_cols).transpose(column_names=col_names)
 
     new_df = new_df.select(list(target_fields.keys()))
+    print(new_df)
 
     df_new_clean = new_df.filter(
         ~pl.all_horizontal(
