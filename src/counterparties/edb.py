@@ -143,8 +143,8 @@ def process_cash_by_fund (
             "Account" : df_desc["ACCOUNT"].cast(pl.Utf8),
             "Date" : date,
             "Bank" : "EDB",
-            "Type" : df_desc["DESCRIPTION"],
             "Currency" : ccy_list,
+            "Type" : df_desc["DESCRIPTION"],
             "Amount in CCY": amt_list,
             "Exchange": val_exchange,
             "Amount in EUR" : amt_convert_list 
@@ -270,7 +270,7 @@ def get_file_by_fund_n_date (
     """
     date_obj = str_to_date(date)
     date_format = date_to_str(date, d_format)
-
+    """
     df = cache_load_row(None, "EDB", kind, fundation, date_obj)
 
     if df.height > 0 :
@@ -279,7 +279,7 @@ def get_file_by_fund_n_date (
 
         col_data = df.select("Filename").item()
         return col_data
-
+    """
     dir_abs_path = EBD_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
 
     full_fundation = get_full_name_fundation(fundation)

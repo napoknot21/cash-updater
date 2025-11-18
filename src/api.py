@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import json
 import pandas as pd # type: ignore
 import polars as pl
 import yfinance as yf
@@ -7,7 +9,7 @@ import datetime as dt
 
 from typing import Optional, List, Dict
 
-from src.config import PAIRS
+from src.config import PAIRS, CACHE_CLOSE_VALS_ABS
 from src.utils import date_to_str
 
 
@@ -47,7 +49,53 @@ def call_api_for_pairs (
         return call_api_for_pairs(target_date, pairs, loopback - 1)
 
     print(f"\n[+] Close values at {target_date} :")
+
     return normalize_fx_dict(close_values)
+
+
+def load_cache_close_values (file_abs_path : Optional[str] = None) :
+    """
+    
+    """
+    file_abs_path = CACHE_CLOSE_VALS_ABS if file_abs_path is None else file_abs_path
+
+    os.makedirs(os.path.dirname(file_abs_path), exist_ok=True)
+
+    if not os.path.isfile(file_abs_path):
+        return None
+
+    with open(file_abs_path, "r", encoding="utf-8") as f :
+
+        try :
+
+            print("\n[*] Loading FX values from cache")
+            return json.load(f)
+        
+        except json.JSONDecodeError :
+            # Corrupted file
+            return None
+
+
+def update_cache_close_values (
+        
+        file_abs_path : Optional[str] = None,
+        new_values : Optional[Dict] = None
+
+    ) -> bool :
+    """
+    
+    """
+    file_abs_path = CACHE_CLOSE_VALS_ABS if file_abs_path is None else file_abs_path
+    print(file_abs_path)
+    if not os.path.exists(file_abs_path) :
+
+        dir_abs_path = os.path.dirname(file_abs_path)
+        os.makedirs(dir_abs_path, exist_ok=True)
+
+    with open(file_abs_path, "w", encoding="utf-8") as f :
+        json.dump(new_values, f, indent=4)
+
+    return True
 
 
 def check_nan_into_values (
@@ -95,5 +143,8 @@ def normalize_fx_dict (raw_fx : Optional[Dict[str, float]] = None, ends_with : s
 
             ccy = name[3:6]
             normalized[ccy] = float(val)
+
+    print("\n[*] Normalizing FX values")
+    update_cache_close_values(new_values=normalized)
 
     return normalized

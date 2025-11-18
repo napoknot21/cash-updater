@@ -122,8 +122,8 @@ def process_cash_by_fund (
             "Account" : dataframe["Account"].to_list(),
             "Date" : date,
             "Bank" : "Saxo Bank",
-            "Type" : "Held",
             "Currency" : ccy_list,
+            "Type" : "Held",
             "Amount in CCY": amt_list,
             "Exchange": val_exchange,
             "Amount in EUR" : amt_convert_list 
@@ -222,7 +222,7 @@ def get_file_by_fund_n_date (
     """
     date_obj = str_to_date(date)
     date_format = date_to_str(date, d_format)
-
+    """
     df_cache = load_cache()
     df = cache_load_row(df_cache, "SAXO", kind, fundation, date_obj)
 
@@ -230,6 +230,7 @@ def get_file_by_fund_n_date (
 
         col_data = df.select("Filename").item()
         return col_data
+    """
 
     rules = SAXO_FILENAMES if rules is None else rules
     dir_abs_path = SAXO_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path

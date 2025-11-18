@@ -169,7 +169,7 @@ def generate_dates (
         return None
     
     # Filter out weekends for non-business day frequencies
-    series_dates_wd = series_dates.filter(series_dates.dt.weekday() <= 5)
+    series_dates_wd = series_dates.filter(series_dates.dt.weekday() <= 6)
     
     if series_dates_wd.len() == 0 :
 

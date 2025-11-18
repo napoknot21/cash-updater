@@ -76,6 +76,7 @@ def ubs_collateral (
     """
     
     """
+    print("--------------------COLLATERAL USB =======================================")
     structure = COLLATERAL_COLUMNS if structure is None else structure
 
     if fundation == "WR" :
@@ -96,7 +97,7 @@ def ubs_collateral (
     dataframe = get_df_from_file_collateral(full_path, date, fundation)
 
     out = process_collateral_by_fund(dataframe, date, fundation, exchange, structure)
-
+    print(out)
     return out
 
 
@@ -139,8 +140,8 @@ def process_cash_by_fund (
             "Account" : dataframe["Cusip/ISIN"].to_list(),
             "Date" : date,
             "Bank" : "UBS AG",
-            "Type" : "Held",
             "Currency" : ccy_list,
+            "Type" : "Held",
             "Amount in CCY": amt_list,
             "Exchange": val_exchange,
             "Amount in EUR" : amt_convert_list 
@@ -277,7 +278,7 @@ def get_file_by_fund_n_date_collat (
     """
     date = date_to_str(date, d_format)
     
-    rules = UBS_FILENAMES_CASH if rules is None else rules
+    rules = UBS_FILENAMES_COLLATERAL if rules is None else rules
     dir_abs_path = UBS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
 
     full_fundation = get_full_name_fundation(fundation)

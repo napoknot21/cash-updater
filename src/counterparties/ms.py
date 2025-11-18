@@ -138,8 +138,8 @@ def process_cash_by_fund (
             "Account" : rules.get(fundation),
             "Date" : date,
             "Bank" : entity,
-            "Type" : ["Held"],
             "Currency" : ccy_list,
+            "Type" : ["Held"],
             "Amount in CCY": amt_list,
             "Exchange": val_exchange,
             "Amount in EUR" : amt_convert_list 
@@ -254,13 +254,13 @@ def get_file_by_fund_n_date (
     date_obj = str_to_date(date)
     date_format = date_to_str(date, d_format)
     
-    df_cahe = load_cache()
-    df = cache_load_row(df_cahe, "MS", kind, fundation, date_obj)
+    #df_cahe = load_cache()
+    #df = cache_load_row(df_cahe, "MS", kind, fundation, date_obj)
 
-    if df.height > 0 :
+    #if df.height > 0 :
 
-        col_data = df.select("Filename").item()
-        return col_data
+    #    col_data = df.select("Filename").item()
+    #    return col_data
 
     rules = MS_FILENAMES_CASH if rules is None else rules
     dir_abs_path = MS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path

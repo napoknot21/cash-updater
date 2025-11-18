@@ -38,7 +38,7 @@ def gs_cash (
 
     rules = GS_FILENAMES_CASH if rules is None else rules
 
-    filename = get_file_by_fund_n_date(date, fundation, kind="cash", rules=rules) #if filename is None else filename
+    filename = get_file_by_fund_n_date(date, fundation, kind="cash", rules=rules) if filename is None else filename
     
     if filename is None :
         return pl.DataFrame(schema=structure)
@@ -130,8 +130,8 @@ def process_cash_by_fund (
             "Account" : dataframe["Account Number"].to_list(),
             "Date" : date,
             "Bank" : dataframe["GS Entity"],
-            "Type" : dataframe["Post/Held"],
             "Currency" : ccy_list,
+            "Type" : dataframe["Post/Held"],
             "Amount in CCY": amt_list,
             "Exchange": val_exchange,
             "Amount in EUR" : amt_convert_list 
@@ -246,14 +246,6 @@ def get_file_by_fund_n_date (
     """
     date_obj = str_to_date(date)
     date_format = date_to_str(date, d_format)
-
-    df_cache = load_cache()
-    df = cache_load_row(df_cache, "GS", kind, fundation, date_obj)
-
-    if  df.height > 0 :
-
-        col_data = df.select("Filename").item()
-        return col_data
         
     dir_abs_path = GS_ATTACHMENT_DIR_ABS_PATH if dir_abs_path is None else dir_abs_path
     rules = GS_FILENAMES_CASH if rules is None else rules
@@ -268,8 +260,6 @@ def get_file_by_fund_n_date (
             if entry.lower().endswith(extensions) : 
 
                 print(f"\n[+] [GS] File found for {date} and for {full_fundation.lower()} : {entry}")
-                #cache_update(df_cache, date_obj, "GS", fundation, kind, entry)
-
                 return entry
         
     return None
